@@ -102,6 +102,10 @@ async def start_cmd(message: types.Message):
 
 # ---------------- HAYDOVCHI SECTION ----------------
 from aiogram.types import ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.utils.callback_data import CallbackData
+
+# ---------------- CALLBACKS ----------------
+driver_cb = CallbackData("driver", "action", "uid")
 
 # ---------------- TO'LOV TUGMASI ----------------
 def payment_kb():
@@ -114,16 +118,16 @@ def payment_kb():
     )
     return kb
 
-# ---------------- HAYDOVCHI SECTION ----------------
+# ---------------- HAYDOVCHI BO‘LIM ----------------
 @dp.message_handler(lambda m: m.text == "🚘 Haydovchi")
 async def driver_section(message: types.Message):
     uid = str(message.from_user.id)
 
-    # Foydalanuvchi ma'lumotlari yo‘q bo‘lsa yaratamiz
+    # Foydalanuvchi yo‘q bo‘lsa yaratish
     if uid not in data['users']:
         data['users'][uid] = {
             "role": None,
-            "driver_status": "none",
+            "driver_status": "none",  # none, pending, approved, rejected
             "driver_paused": False,
             "state": None,
             "driver_temp": {},
@@ -135,7 +139,7 @@ async def driver_section(message: types.Message):
 
     u = data['users'][uid]
 
-    # ---------------- ADMIN BO'LSA ----------------
+    # Admin bo‘lsa
     if int(uid) in ADMINS:
         data['users'][uid]['driver_status'] = "approved"
         data['users'][uid]['driver_paused'] = False
@@ -145,37 +149,32 @@ async def driver_section(message: types.Message):
             reply_markup=driver_main_kb()
         )
 
-    # ---------------- TASDIQLANGAN HAYDOVCHI ----------------
+    # Tasdiqlangan haydovchi
     if u.get("driver_status") == "approved":
         return await message.answer(
             "Haydovchi bo‘limi:",
             reply_markup=driver_main_kb()
         )
 
-    # ---------------- TO'LOV QILMAGAN FOYDALANUVCHI ----------------
+    # Hali haydovchi bo‘lmagan foydalanuvchi
     text = (
         "🚘 <b>Haydovchi bo‘limi</b>\n\n"
         "Bu bo‘limdan foydalanish uchun <b>to‘lov qilishingiz kerak</b> 💰\n\n"
         "👇 Pastdagi tugma orqali admin bilan bog‘lanib to‘lovni amalga oshiring.\n"
-        "To‘lovdan so‘ng, <b>arizani yuborish</b> tugmasini bosing va admin sizni haydovchi sifatida tasdiqlaydi."
+        "To‘lovdan so‘ng <b>arizani yuborish</b> tugmasini bosing."
     )
 
-    # ReplyKeyboard: Ariza yuborish va Orqaga
+    # ReplyKeyboard: Ariza yuborish + Orqaga
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
     kb.add("📨 Ariza yuborish", "◀️ Orqaga")
 
-    await message.answer(
-        text,
-        reply_markup=kb,
-        parse_mode="HTML"
-    )
+    await message.answer(text, reply_markup=kb, parse_mode="HTML")
 
     # InlineKeyboard: To‘lov qilish
     await message.answer(
-        "💳 To‘lov qilish uchun quyidagi tugma orqali admin bilan bog‘laning:",
+        "💳 To‘lov qilish uchun admin bilan bog‘laning:",
         reply_markup=payment_kb()
     )
-
 
 # ---------------- ARIZA YUBORISH ----------------
 @dp.message_handler(lambda m: m.text == "📨 Ariza yuborish")
@@ -183,23 +182,81 @@ async def send_driver_request(message: types.Message):
     uid = str(message.from_user.id)
     u = data['users'][uid]
 
-    # Adminga xabar yuborish
+    # Rad etilgan bo‘lsa, yana yuborishga ruxsat
+    if u.get("driver_status") == "rejected":
+        u['driver_status'] = "none"
+        save_json(DATA_FILE, data)
+
+    u['driver_status'] = "pending"
+    save_json(DATA_FILE, data)
+
+    # Adminga ariza xabari
     admins_text = (
         f"🚨 <b>Yangi haydovchi arizasi</b>\n\n"
         f"Foydalanuvchi: {u.get('full_name')} (@{u.get('username')})\n"
-        f"ID: {uid}\n\n"
+        f"ID: {uid}\n"
+        f"Niki: @{u.get('username')}\n\n"
         "To‘lov qilgan bo‘lsa, tasdiqlashni unutmang."
     )
-    for admin_id in ADMINS:
-        await bot.send_message(admin_id, admins_text, parse_mode="HTML")
 
-    # Foydalanuvchiga tasdiqlash xabari
+    # InlineKeyboard: Tasdiqlash / Rad etish
+    kb = InlineKeyboardMarkup(row_width=2)
+    kb.add(
+        InlineKeyboardButton(
+            text="✅ Tasdiqlash",
+            callback_data=driver_cb.new(action="approve", uid=uid)
+        ),
+        InlineKeyboardButton(
+            text="❌ Rad etish",
+            callback_data=driver_cb.new(action="reject", uid=uid)
+        )
+    )
+
+    for admin_id in ADMINS:
+        await bot.send_message(admin_id, admins_text, parse_mode="HTML", reply_markup=kb)
+
+    # Foydalanuvchiga xabar
     await message.answer(
         "✅ Arizangiz adminga yuborildi.\n"
         "To‘lov qilganingizni tasdiqlangandan so‘ng siz haydovchi sifatida tasdiqlanasiz.",
         reply_markup=ReplyKeyboardMarkup(resize_keyboard=True).add("◀️ Orqaga")
     )
 
+# ---------------- CALLBACK HANDLER ----------------
+@dp.callback_query_handler(driver_cb.filter())
+async def driver_callback_handler(query: types.CallbackQuery, callback_data: dict):
+    action = callback_data['action']
+    uid = callback_data['uid']
+
+    if uid not in data['users']:
+        return await query.answer("Foydalanuvchi topilmadi.", show_alert=True)
+
+    user = data['users'][uid]
+
+    if action == "approve":
+        user['driver_status'] = "approved"
+        save_json(DATA_FILE, data)
+        await query.message.edit_text(f"✅ {user.get('full_name')} haydovchi sifatida tasdiqlandi.")
+        # Foydalanuvchiga xabar
+        await bot.send_message(uid, "🎉 Siz haydovchi sifatida tasdiqlandingiz!", reply_markup=driver_main_kb())
+
+    elif action == "reject":
+        user['driver_status'] = "rejected"
+        save_json(DATA_FILE, data)
+        await query.message.edit_text(f"❌ {user.get('full_name')} rad etildi.")
+        # Foydalanuvchiga xabar
+        kb = ReplyKeyboardMarkup(resize_keyboard=True)
+        kb.add("📨 Qayta yuborish", "◀️ Orqaga")
+        await bot.send_message(
+            uid,
+            "❌ Siz rad etildingiz. Iltimos to‘lov qilib qayta urinib ko‘ring.",
+            reply_markup=kb
+        )
+
+# ---------------- QAYTA YUBORISH ----------------
+@dp.message_handler(lambda m: m.text == "📨 Qayta yuborish")
+async def resend_driver_request(message: types.Message):
+    await send_driver_request(message)
 
 
 # ---------------- YOLOVCHI SECTION ----------------
