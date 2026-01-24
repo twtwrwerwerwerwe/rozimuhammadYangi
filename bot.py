@@ -101,11 +101,24 @@ async def start_cmd(message: types.Message):
     await message.answer("<b>Salom!</b> Siz kimsiz? Tanlang:", reply_markup=main_menu(is_admin=is_admin))
 
 # ---------------- HAYDOVCHI SECTION ----------------
+from aiogram.types import ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardButton
+
+# To‘lov tugmasi uchun InlineKeyboard
+def payment_kb():
+    kb = InlineKeyboardMarkup(row_width=1)
+    kb.add(
+        InlineKeyboardButton(
+            text="💳 To‘lov qilish",
+            url="https://t.me/akramjonov0101"  # admin profili
+        )
+    )
+    return kb
+
 @dp.message_handler(lambda m: m.text == "🚘 Haydovchi")
 async def driver_section(message: types.Message):
     uid = str(message.from_user.id)
 
-    # user yo‘q bo‘lsa yaratamiz
+    # Foydalanuvchi ma'lumotlari yo‘q bo‘lsa yarating
     if uid not in data['users']:
         data['users'][uid] = {
             "role": None,
@@ -119,8 +132,10 @@ async def driver_section(message: types.Message):
         }
         save_json(DATA_FILE, data)
 
-    # ADMIN bo‘lsa — to‘g‘ridan-to‘g‘ri kiradi
-    if int(message.from_user.id) in ADMINS:
+    u = data['users'][uid]
+
+    # ADMIN bo‘lsa — to‘g‘ridan-to‘g‘ri haydovchi bo‘limi
+    if int(uid) in ADMINS:
         data['users'][uid]['driver_status'] = "approved"
         data['users'][uid]['driver_paused'] = False
         save_json(DATA_FILE, data)
@@ -129,16 +144,14 @@ async def driver_section(message: types.Message):
             reply_markup=driver_main_kb()
         )
 
-    u = data['users'][uid]
-
-    # AGAR TASDIQLANGAN BO‘LSA
+    # Agar foydalanuvchi tasdiqlangan haydovchi bo‘lsa
     if u.get("driver_status") == "approved":
         return await message.answer(
             "Haydovchi bo‘limi:",
             reply_markup=driver_main_kb()
         )
 
-    # AKS HOLDA — TO‘LOV TALAB QILINADI
+    # Agar foydalanuvchi hali haydovchi bo‘lmasa — to‘lov talab qilinadi
     text = (
         "🚘 <b>Haydovchi bo‘limi</b>\n\n"
         "Bu bo‘limdan foydalanish uchun <b>to‘lov qilishingiz kerak</b> 💰\n\n"
