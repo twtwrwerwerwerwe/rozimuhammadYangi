@@ -105,7 +105,7 @@ async def start_cmd(message: types.Message):
 async def driver_section(message: types.Message):
     uid = str(message.from_user.id)
 
-    # Agar foydalanuvchi ma'lumotlari yo'q bo'lsa yarating (xavfsizlik uchun)
+    # user yo‘q bo‘lsa yaratamiz
     if uid not in data['users']:
         data['users'][uid] = {
             "role": None,
@@ -119,30 +119,39 @@ async def driver_section(message: types.Message):
         }
         save_json(DATA_FILE, data)
 
-    # Agar user admin bo'lsa — avtomatik tasdiqlangan haydovchi qilib qo'yamiz
-    if int(uid) in ADMINS or int(message.from_user.id) in ADMINS:
-        # agar hali approved bo'lmasa — approved qilamiz
-        if data['users'][uid].get('driver_status') != "approved":
-            data['users'][uid]['driver_status'] = "approved"
-            # default: pauza o'chirilgan bo'lsin
-            data['users'][uid]['driver_paused'] = False
-            save_json(DATA_FILE, data)
-        # bevosita haydovchi bo'limiga kirishi uchun xabar
-        return await message.answer("Haydovchi bo‘limi (admin):", reply_markup=driver_main_kb())
+    # ADMIN bo‘lsa — to‘g‘ridan-to‘g‘ri kiradi
+    if int(message.from_user.id) in ADMINS:
+        data['users'][uid]['driver_status'] = "approved"
+        data['users'][uid]['driver_paused'] = False
+        save_json(DATA_FILE, data)
+        return await message.answer(
+            "Haydovchi bo‘limi (admin):",
+            reply_markup=driver_main_kb()
+        )
 
-    u = data['users'].get(uid, {"driver_status": "none"})
-    if u['driver_status'] == "none":
-        kb = ReplyKeyboardMarkup(resize_keyboard=True)
-        kb.add("📨 Haydovchi bo‘lish uchun ariza yuborish", "◀️ Orqaga")
-        return await message.answer("Siz hali haydovchi emassiz. Ariza yuboring.", reply_markup=kb)
-    if u['driver_status'] == "pending":
-        return await message.answer("⏳ Arizangiz admin tomonidan ko‘rib chiqilmoqda…", reply_markup=back_btn())
-    if u['driver_status'] == "rejected":
-        kb = ReplyKeyboardMarkup(resize_keyboard=True)
-        kb.add("📨 Haydovchi bo‘lish uchun ariza yuborish", "◀️ Orqaga")
-        return await message.answer("❌ Admin arizani rad etgan. Yana ariza yuborishingiz mumkin.", reply_markup=kb)
-    # Tasdiqlangan haydovchi
-    await message.answer("Haydovchi bo‘limi:", reply_markup=driver_main_kb())
+    u = data['users'][uid]
+
+    # AGAR TASDIQLANGAN BO‘LSA
+    if u.get("driver_status") == "approved":
+        return await message.answer(
+            "Haydovchi bo‘limi:",
+            reply_markup=driver_main_kb()
+        )
+
+    # AKS HOLDA — TO‘LOV TALAB QILINADI
+    text = (
+        "🚘 <b>Haydovchi bo‘limi</b>\n\n"
+        "Bu bo‘limdan foydalanish uchun <b>to‘lov qilishingiz kerak</b> 💰\n\n"
+        "👇 Pastdagi tugma orqali admin bilan bog‘lanib to‘lovni amalga oshiring.\n"
+        "To‘lovdan so‘ng admin sizni haydovchi sifatida tasdiqlaydi."
+    )
+
+    await message.answer(
+        text,
+        reply_markup=payment_kb(),
+        parse_mode="HTML"
+    )
+
 
 # ---------------- YOLOVCHI SECTION ----------------
 @dp.message_handler(lambda m: m.text == "🧍 Yo‘lovchi")
