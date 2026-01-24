@@ -103,7 +103,7 @@ async def start_cmd(message: types.Message):
 # ---------------- HAYDOVCHI SECTION ----------------
 from aiogram.types import ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardButton
 
-# To‘lov tugmasi uchun InlineKeyboard
+# ---------------- TO'LOV TUGMASI ----------------
 def payment_kb():
     kb = InlineKeyboardMarkup(row_width=1)
     kb.add(
@@ -114,11 +114,12 @@ def payment_kb():
     )
     return kb
 
+# ---------------- HAYDOVCHI SECTION ----------------
 @dp.message_handler(lambda m: m.text == "🚘 Haydovchi")
 async def driver_section(message: types.Message):
     uid = str(message.from_user.id)
 
-    # Foydalanuvchi ma'lumotlari yo‘q bo‘lsa yarating
+    # Foydalanuvchi ma'lumotlari yo‘q bo‘lsa yaratamiz
     if uid not in data['users']:
         data['users'][uid] = {
             "role": None,
@@ -134,7 +135,7 @@ async def driver_section(message: types.Message):
 
     u = data['users'][uid]
 
-    # ADMIN bo‘lsa — to‘g‘ridan-to‘g‘ri haydovchi bo‘limi
+    # ---------------- ADMIN BO'LSA ----------------
     if int(uid) in ADMINS:
         data['users'][uid]['driver_status'] = "approved"
         data['users'][uid]['driver_paused'] = False
@@ -144,25 +145,35 @@ async def driver_section(message: types.Message):
             reply_markup=driver_main_kb()
         )
 
-    # Agar foydalanuvchi tasdiqlangan haydovchi bo‘lsa
+    # ---------------- TASDIQLANGAN HAYDOVCHI ----------------
     if u.get("driver_status") == "approved":
         return await message.answer(
             "Haydovchi bo‘limi:",
             reply_markup=driver_main_kb()
         )
 
-    # Agar foydalanuvchi hali haydovchi bo‘lmasa — to‘lov talab qilinadi
+    # ---------------- TO'LOV QILMAGAN FOYDALANUVCHI ----------------
     text = (
         "🚘 <b>Haydovchi bo‘limi</b>\n\n"
         "Bu bo‘limdan foydalanish uchun <b>to‘lov qilishingiz kerak</b> 💰\n\n"
         "👇 Pastdagi tugma orqali admin bilan bog‘lanib to‘lovni amalga oshiring.\n"
-        "To‘lovdan so‘ng admin sizni haydovchi sifatida tasdiqlaydi."
+        "To‘lovdan so‘ng, <b>avval arizani yuborish</b> tugmasini bosing va admin sizni haydovchi sifatida tasdiqlaydi."
     )
 
+    # Ariza yuborish va ortga tugmalari
+    kb = ReplyKeyboardMarkup(resize_keyboard=True)
+    kb.add("📨 Ariza yuborish", "◀️ Orqaga")
+
+    # Xabarni yuborish
     await message.answer(
         text,
-        reply_markup=payment_kb(),
-        parse_mode="HTML"
+        reply_markup=kb
+    )
+
+    # Shu bilan birga, alohida to‘lov qilish tugmasini ham yuboramiz
+    await message.answer(
+        "💳 To‘lov qilish uchun quyidagi tugma orqali admin bilan bog‘laning:",
+        reply_markup=payment_kb()
     )
 
 
