@@ -157,24 +157,49 @@ async def driver_section(message: types.Message):
         "🚘 <b>Haydovchi bo‘limi</b>\n\n"
         "Bu bo‘limdan foydalanish uchun <b>to‘lov qilishingiz kerak</b> 💰\n\n"
         "👇 Pastdagi tugma orqali admin bilan bog‘lanib to‘lovni amalga oshiring.\n"
-        "To‘lovdan so‘ng, <b>avval arizani yuborish</b> tugmasini bosing va admin sizni haydovchi sifatida tasdiqlaydi."
+        "To‘lovdan so‘ng, <b>arizani yuborish</b> tugmasini bosing va admin sizni haydovchi sifatida tasdiqlaydi."
     )
 
-    # Ariza yuborish va ortga tugmalari
+    # ReplyKeyboard: Ariza yuborish va Orqaga
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
     kb.add("📨 Ariza yuborish", "◀️ Orqaga")
 
-    # Xabarni yuborish
     await message.answer(
         text,
-        reply_markup=kb
+        reply_markup=kb,
+        parse_mode="HTML"
     )
 
-    # Shu bilan birga, alohida to‘lov qilish tugmasini ham yuboramiz
+    # InlineKeyboard: To‘lov qilish
     await message.answer(
         "💳 To‘lov qilish uchun quyidagi tugma orqali admin bilan bog‘laning:",
         reply_markup=payment_kb()
     )
+
+
+# ---------------- ARIZA YUBORISH ----------------
+@dp.message_handler(lambda m: m.text == "📨 Ariza yuborish")
+async def send_driver_request(message: types.Message):
+    uid = str(message.from_user.id)
+    u = data['users'][uid]
+
+    # Adminga xabar yuborish
+    admins_text = (
+        f"🚨 <b>Yangi haydovchi arizasi</b>\n\n"
+        f"Foydalanuvchi: {u.get('full_name')} (@{u.get('username')})\n"
+        f"ID: {uid}\n\n"
+        "To‘lov qilgan bo‘lsa, tasdiqlashni unutmang."
+    )
+    for admin_id in ADMINS:
+        await bot.send_message(admin_id, admins_text, parse_mode="HTML")
+
+    # Foydalanuvchiga tasdiqlash xabari
+    await message.answer(
+        "✅ Arizangiz adminga yuborildi.\n"
+        "To‘lov qilganingizni tasdiqlangandan so‘ng siz haydovchi sifatida tasdiqlanasiz.",
+        reply_markup=ReplyKeyboardMarkup(resize_keyboard=True).add("◀️ Orqaga")
+    )
+
 
 
 # ---------------- YOLOVCHI SECTION ----------------
