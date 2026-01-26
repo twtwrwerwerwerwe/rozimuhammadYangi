@@ -9,7 +9,7 @@ from aiogram.utils import executor
 
 # ---------------- CONFIG ----------------
 TOKEN = "8474009974:AAERXCF7Jj1Qv-QGixFGaFVIgnUZcoIJoPs"
-ADMINS = [6302873072]
+ADMINS = [6302873072, 610177376, 8091041280]
 BOT_USERNAME = "@rishtonBogdodToshkentTaxi_bot"
 
 # Bu yerga 1 yoki undan ortiq kanal id larini qo'yishingiz mumkin.
