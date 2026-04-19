@@ -51,8 +51,14 @@ data = load_json(DATA_FILE, {"users":{}, "admin_notifs": {}})
 # ---------------- KEYBOARDS ----------------
 def main_menu(is_admin=False):
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
+    
+    # HAMMA UCHUN
+    kb.add(KeyboardButton("🚘 Haydovchi"))
+    
+    # FAQAT ADMIN
     if is_admin:
         kb.add(KeyboardButton("👥 Haydovchilar"))
+        
     return kb
 
 def back_btn():
