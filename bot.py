@@ -83,6 +83,7 @@ async def start_cmd(message: types.Message):
             "driver_status": "none",
             "driver_paused": False,
             "state": None,
+            "phone": None,
             "driver_temp": {},
             "pass_temp": {},
             "full_name": message.from_user.full_name or "",
@@ -114,7 +115,7 @@ def payment_kb():
     kb.add(
         InlineKeyboardButton(
             text="💳 To‘lov qilish",
-            url="https://t.me/akramjonov0101"  # admin profili
+            url="https://t.me/akramjonov777"  # admin profili
         )
     )
     return kb
@@ -152,6 +153,20 @@ async def driver_section(message: types.Message):
 
     # Tasdiqlangan haydovchi
     if u.get("driver_status") == "approved":
+    
+    # agar telefon yo‘q bo‘lsa — majburiy so‘raymiz
+        if not u.get("phone"):
+            kb = ReplyKeyboardMarkup(resize_keyboard=True)
+            kb.add(KeyboardButton("📞 Raqamni yuborish", request_contact=True))
+            
+            data['users'][uid]['state'] = "get_phone"
+            save_json(DATA_FILE, data)
+
+            return await message.answer(
+                "📞 Iltimos telefon raqamingizni yuboring:",
+                reply_markup=kb
+            )
+
         return await message.answer(
             "Haydovchi bo‘limi:",
             reply_markup=driver_main_kb()
@@ -365,18 +380,53 @@ async def admin_driver_action(call: types.CallbackQuery):
         # (eski ishlashni saqlab qolyapmiz)
         for ad_id, ad in list(ads['driver'].items()):
             if ad.get('user') == uid and ad.get('active', False):
+
                 for ch in DRIVER_CHANNELS:
                     try:
                         kb = InlineKeyboardMarkup()
-                        bot_username_for_url = BOT_USERNAME.lstrip('@')
-                        kb.add(InlineKeyboardButton("📩 Zakaz berish", url=f"https://t.me/{bot_username_for_url}?start=zakaz"))
-                        if ad.get('photo'):
-                            await bot.send_photo(ch, ad['photo'], caption=ad.get('text', ''), reply_markup=kb)
+
+                        # 🔥 DRIVER TELEFONINI OLAMIZ
+                        driver_uid = ad.get('user')
+                        driver_phone = data['users'].get(driver_uid, {}).get('phone')
+
+                        # 🔥 AGAR TELEFON BOR BO‘LSA
+                        if driver_phone:
+                            kb.add(
+                                InlineKeyboardButton(
+                                    "📞 Qo‘ng‘iroq qilish",
+                                    url=f"tel:{driver_phone}"
+                                )
+                            )
                         else:
-                            await bot.send_message(ch, ad.get('text', ''), reply_markup=kb)
+                            # fallback (agar raqam yo‘q bo‘lsa)
+                            kb.add(
+                                InlineKeyboardButton(
+                                    "❌ Raqam mavjud emas",
+                                    callback_data="no_phone"
+                                )
+                            )
+
+                        # 🔥 E’LONNI YUBORISH
+                        if ad.get('photo'):
+                            await bot.send_photo(
+                                ch,
+                                ad['photo'],
+                                caption=ad.get('text', ''),
+                                reply_markup=kb
+                            )
+                        else:
+                            await bot.send_message(
+                                ch,
+                                ad.get('text', ''),
+                                reply_markup=kb
+                            )
+
+                        # 🔥 VAQTNI BELGILASH
                         ad['last_sent'] = time.time()
-                    except:
-                        pass
+
+                    except Exception as e:
+                        print("Xatolik:", e)
+
         save_json(ADS_FILE, ads)
         save_json(DATA_FILE, data)
 
@@ -482,7 +532,24 @@ async def driver_get_text(message: types.Message):
     data['users'][uid]['driver_temp']['text'] = message.text
     data['users'][uid]['state'] = "driver_photo"
     save_json(DATA_FILE, data)
-    await message.answer("📸 Mashina rasmini yuboring (majburiy):", reply_markup=back_btn())
+    kb = ReplyKeyboardMarkup(resize_keyboard=True)
+    kb.add("⏭ O‘tkazib yuborish", "◀️ Orqaga")
+
+    await message.answer("📸 Mashina rasmini yuboring (majburiy emas):", reply_markup=kb)
+
+@dp.message_handler(lambda m: m.text == "⏭ O‘tkazib yuborish")
+async def skip_photo(message: types.Message):
+    uid = str(message.from_user.id)
+
+    if data['users'][uid].get('state') != "driver_photo":
+        return
+
+    # rasm yo‘q deb belgilaymiz
+    data['users'][uid]['driver_temp']['photo'] = None
+    data['users'][uid]['state'] = "driver_interval"
+    save_json(DATA_FILE, data)
+
+    await message.answer("⏱ Necha daqiqada qayta yuborilsin? (masalan: 1)", reply_markup=back_btn())
 
 @dp.message_handler(content_types=['photo'])
 async def driver_get_photo(message: types.Message):
@@ -546,6 +613,23 @@ async def driver_confirm(message: types.Message):
     # xabar: e'lon yuborish boshlandi va minimal tugmalar (To'xtatish, Yangi e'lon, Orqaga)
     await message.answer("🚀 E’lon yuborish boshlandi!", reply_markup=ReplyKeyboardMarkup(resize_keyboard=True).add("⏸ To‘xtatish", "🆕 Yangi e’lon").add("◀️ Orqaga"))
 
+@dp.message_handler(content_types=['contact'])
+async def get_phone_handler(message: types.Message):
+    uid = str(message.from_user.id)
+
+    if data['users'][uid].get('state') != "get_phone":
+        return
+
+    phone = message.contact.phone_number
+
+    data['users'][uid]['phone'] = phone
+    data['users'][uid]['state'] = None
+    save_json(DATA_FILE, data)
+
+    await message.answer(
+        "✅ Raqamingiz saqlandi!",
+        reply_markup=driver_main_kb()
+    )
 # ---------------- DRIVER LOOP ----------------
 async def driver_loop():
     """
