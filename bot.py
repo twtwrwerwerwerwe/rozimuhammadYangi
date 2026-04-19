@@ -39,8 +39,16 @@ def save_json(path, data):
     path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
 
 # ---------------- INIT FILES ----------------
+# ---------------- INIT FILES ----------------
 if not DATA_FILE.exists():
-    save_json(DATA_FILE, {"users":{}, "admin_notifs": {}})
+    save_json(DATA_FILE, {"users": {}, "admin_notifs": {}})
+
+if not ADS_FILE.exists():
+    save_json(ADS_FILE, {"driver": {}})
+
+# ---------------- LOAD DATA ----------------
+data = load_json(DATA_FILE, {"users": {}, "admin_notifs": {}})
+ads = load_json(ADS_FILE, {"driver": {}})
 
 # ---------------- BOT ----------------
 bot = Bot(TOKEN, parse_mode="HTML")
