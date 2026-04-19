@@ -14,7 +14,6 @@ BOT_USERNAME = "@rishtonBogdodToshkentTaxi_bot"
 
 # Bu yerga 1 yoki undan ortiq kanal id larini qo'yishingiz mumkin.
 DRIVER_CHANNELS = [-1003322681147]
-PASSENGER_CHANNELS = [-5014555610]
 
 DATA_FILE = Path("data.json")
 ADS_FILE = Path("ads.json")
@@ -42,20 +41,16 @@ def save_json(path, data):
 # ---------------- INIT FILES ----------------
 if not DATA_FILE.exists():
     save_json(DATA_FILE, {"users":{}, "admin_notifs": {}})
-if not ADS_FILE.exists():
-    save_json(ADS_FILE, {"driver":{}, "passenger":{}})
 
 # ---------------- BOT ----------------
 bot = Bot(TOKEN, parse_mode="HTML")
 dp = Dispatcher(bot)
 
 data = load_json(DATA_FILE, {"users":{}, "admin_notifs": {}})
-ads = load_json(ADS_FILE, {"driver":{}, "passenger":{}})
 
 # ---------------- KEYBOARDS ----------------
 def main_menu(is_admin=False):
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
-    kb.add(KeyboardButton("🚘 Haydovchi"), KeyboardButton("🧍 Yo‘lovchi"))
     if is_admin:
         kb.add(KeyboardButton("👥 Haydovchilar"))
     return kb
@@ -258,26 +253,6 @@ async def driver_callback_handler(query: types.CallbackQuery, callback_data: dic
 async def resend_driver_request(message: types.Message):
     await send_driver_request(message)
 
-
-# ---------------- YOLOVCHI SECTION ----------------
-@dp.message_handler(lambda m: m.text == "🧍 Yo‘lovchi")
-async def passenger_section(message: types.Message):
-    uid = str(message.from_user.id)
-    if uid not in data['users']:
-        data['users'][uid] = {
-            "role": None,
-            "driver_status": "none",
-            "driver_paused": False,
-            "state": None,
-            "driver_temp": {},
-            "pass_temp": {},
-            "full_name": message.from_user.full_name or "",
-            "username": message.from_user.username or ""
-        }
-        save_json(DATA_FILE, data)
-    kb = ReplyKeyboardMarkup(resize_keyboard=True)
-    kb.add("📝 E’lon berish", "◀️ Orqaga")
-    await message.answer("Yo‘lovchi bo‘limi:", reply_markup=kb)
 
 # ---------------- HAYDOVCHI ARIZA ----------------
 @dp.message_handler(lambda m: m.text == "📨 Haydovchi bo‘lish uchun ariza yuborish")
@@ -645,111 +620,6 @@ async def new_driver_ad(message: types.Message):
         data['users'][uid]['driver_paused'] = False
         save_json(DATA_FILE, data)
     return await driver_new_ad(message)
-
-# ---------------- YOLOVCHI SECTION ----------------
-PASS_ROUTES = [
-    "🚗 Qo‘qon → Toshkent", "🚗 Toshkent → Qo‘qon",
-    "🚗 Rishton → Toshkent", "🚗 Toshkent → Rishton",
-    "🚗 Buvayda → Toshkent", "🚗 Toshkent → Buvayda",
-    "🚗 Yangi Qo‘rg‘on → Toshkent", "🚗 Toshkent → Yangi Qo‘rg‘on",
-    "🚗 Farg‘ona → Toshkent", "🚗 Toshkent → Farg‘ona",
-    "🚗 Bag‘dod → Toshkent", "🚗 Toshkent → Bag‘dod"
-]
-
-@dp.message_handler(lambda m: m.text == "📝 E’lon berish")
-async def passenger_ad(message: types.Message):
-    uid = str(message.from_user.id)
-    if uid not in data['users']:
-        data['users'][uid] = {
-            "role": None,
-            "driver_status": "none",
-            "driver_paused": False,
-            "state": None,
-            "driver_temp": {},
-            "pass_temp": {},
-            "full_name": message.from_user.full_name or "",
-            "username": message.from_user.username or ""
-        }
-        save_json(DATA_FILE, data)
-    kb = ReplyKeyboardMarkup(resize_keyboard=True)
-    for r in PASS_ROUTES:
-        kb.add(r)
-    kb.add("🔤 Boshqa", "◀️ Orqaga")
-    data['users'][uid]['state'] = "pass_route"
-    save_json(DATA_FILE, data)
-    await message.answer("Yo‘nalishni tanlang:", reply_markup=kb)
-
-# ---------------- YOLOVCHI HANDLERS ----------------
-@dp.message_handler(lambda m: data['users'].get(str(m.from_user.id), {}).get('state') == "pass_route")
-async def pass_get_route(message: types.Message):
-    uid = str(message.from_user.id)
-    if message.text == "🔤 Boshqa":
-        data['users'][uid]['state'] = "pass_route_custom"
-        save_json(DATA_FILE, data)
-        return await message.answer("Yo‘nalishni yozing:")
-    if message.text not in PASS_ROUTES:
-        return await message.answer("Ro‘yxatdan tanlang yoki Boshqani bosing.")
-    data['users'][uid]['pass_temp'] = {"route": message.text}
-    data['users'][uid]['state'] = "pass_people"
-    save_json(DATA_FILE, data)
-    kb = ReplyKeyboardMarkup(resize_keyboard=True)
-    kb.add("1 kishi","2 kishi","3 kishi","4 kishi","📦 Pochta","◀️ Orqaga")
-    await message.answer("Necha kishisiz?", reply_markup=kb)
-
-@dp.message_handler(lambda m: data['users'].get(str(m.from_user.id), {}).get('state') == "pass_route_custom")
-async def pass_custom(message: types.Message):
-    uid = str(message.from_user.id)
-    data['users'][uid]['pass_temp'] = {"route": message.text}
-    data['users'][uid]['state'] = "pass_people"
-    save_json(DATA_FILE, data)
-    kb = ReplyKeyboardMarkup(resize_keyboard=True)
-    kb.add("1 kishi","2 kishi","3 kishi","4 kishi","📦 Pochta","◀️ Orqaga")
-    await message.answer("Necha kishisiz?", reply_markup=kb)
-
-@dp.message_handler(lambda m: data['users'].get(str(m.from_user.id), {}).get('state') == "pass_people")
-async def pass_people(message: types.Message):
-    uid = str(message.from_user.id)
-    data['users'][uid]['pass_temp']['people'] = message.text
-    data['users'][uid]['state'] = "pass_date"
-    save_json(DATA_FILE, data)
-
-    kb = ReplyKeyboardMarkup(resize_keyboard=True)
-    for h in range(24):
-        kb.add(f"{h:02d}:00")
-    kb.add("◀️ Orqaga")
-    await message.answer("Qachonga?", reply_markup=kb)
-
-@dp.message_handler(lambda m: data['users'].get(str(m.from_user.id), {}).get('state') == "pass_date")
-async def pass_date(message: types.Message):
-    uid = str(message.from_user.id)
-    data['users'][uid]['pass_temp']['time'] = message.text
-    data['users'][uid]['state'] = "pass_phone"
-    save_json(DATA_FILE, data)
-    await message.answer("📞 Telefon raqamingizni kiriting (+998901234567):", reply_markup=back_btn())
-
-@dp.message_handler(lambda m: data['users'].get(str(m.from_user.id), {}).get('state') == "pass_phone")
-async def pass_phone(message: types.Message):
-    uid = str(message.from_user.id)
-    t = data['users'][uid]['pass_temp']
-    if not message.text.startswith("+"): return await message.answer("Raqam + bilan boshlansin!", reply_markup=back_btn())
-    t['phone'] = message.text
-    ad_id = str(time.time()).replace('.', '')
-    ads['passenger'][ad_id] = t
-    save_json(ADS_FILE, ads)
-    data['users'][uid]['pass_temp'] = {}
-    data['users'][uid]['state'] = None
-    save_json(DATA_FILE, data)
-    text = (
-        f"🚖 <b>Yo‘lovchi e’loni:</b>\n\n"
-        f"📍 <b>Yo‘nalish:</b> {t['route']}\n\n"
-        f"👥 <b>Odamlar soni:</b> {t['people']}\n\n"
-        f"🕒 <b>Vaqt:</b> {t['time']}\n\n"
-        f"📞 <b>Telefon:</b> {t['phone']}\n"
-    )
-    for ch in PASSENGER_CHANNELS:
-        try: await bot.send_message(ch, text, parse_mode="HTML")
-        except: pass
-    await message.answer("E’lon yuborildi!", reply_markup=main_menu())
 
 # ---------------- UNIVERSAL "ORQAGA" HANDLER ----------------
 @dp.message_handler(lambda m: m.text == "◀️ Orqaga")
