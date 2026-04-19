@@ -671,7 +671,7 @@ async def driver_loop():
                         try:
                             kb = InlineKeyboardMarkup()
                             bot_username_for_url = BOT_USERNAME.lstrip('@')
-                            kb.add(InlineKeyboardButton("📩 Zakaz berish", url=f"https://t.me/{bot_username_for_url}?start=zakaz"))
+                            kb.add(InlineKeyboardButton("📩 Zakaz berish", url=f"https://t.me/{Abbos_Vlog_uzz_bot}?start=zakaz"))
                             if ad.get('photo'):
                                 await bot.send_photo(ch, ad['photo'], caption=ad.get('text', ''), reply_markup=kb)
                             else:
