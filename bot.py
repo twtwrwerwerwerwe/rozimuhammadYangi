@@ -197,6 +197,15 @@ async def passenger_section(message: types.Message):
     kb.add("📝 E’lon berish", "◀️ Orqaga")
     await message.answer("Yo‘lovchi bo‘limi:", reply_markup=kb)
 
+@dp.message_handler(lambda m: m.text == "📝 E’lon berish")
+async def pass_ad_start(message: types.Message):
+    uid = str(message.from_user.id)
+
+    data['users'][uid]['state'] = "pass_text"
+    save_json(DATA_FILE, data)
+
+    await message.answer("✍️ E’lon matnini yozing:")
+
 # ---------------- HAYDOVCHI ARIZA ----------------
 @dp.message_handler(lambda m: m.text == "📨 Haydovchi bo‘lish uchun ariza yuborish")
 async def driver_apply(message: types.Message):
@@ -644,35 +653,6 @@ async def send_passenger_ad(uid, text, phone):
 
     for ch in PASSENGER_CHANNELS:
         await bot.send_message(ch, text, reply_markup=kb)
-
-# --- Guruhdagi korish tugmasi (faqat botga) ---
-@dp.callback_query_handler(lambda c: c.data.startswith("view_pass:"))
-async def view_passenger(call: types.CallbackQuery):
-    ad_id = call.data.split(":")[1]
-    ad = ads['passenger'].get(ad_id)
-    if not ad:
-        return await call.answer("Topilmadi", show_alert=True)
-
-    # Foydalanuvchiga bot orqali e’lonni yuborish
-    kb = InlineKeyboardMarkup()
-    kb.add(InlineKeyboardButton("✅ Qabul qilish", callback_data=f"take_pass:{ad_id}"))
-
-    await bot.send_message(call.from_user.id, ad['text'], reply_markup=kb)
-    await call.answer("E’lon botga ochildi ✅", show_alert=True)
-
-
-@dp.callback_query_handler(lambda c: c.data.startswith("view_pass:"))
-async def view_single_pass(call: types.CallbackQuery):
-    ad_id = call.data.split(":")[1]
-    ad = ads['passenger'].get(ad_id)
-    if not ad:
-        return await call.answer("Topilmadi", show_alert=True)
-
-    # Guruhdagi xabarni o‘zgartirmaymiz, faqat bot ichida foydalanuvchiga ko‘rsatamiz
-    kb = InlineKeyboardMarkup()
-    kb.add(InlineKeyboardButton("✅ Qabul qilish", callback_data=f"take_pass:{ad_id}"))
-
-    await call.message.answer(ad['text'], reply_markup=kb)
 
 @dp.callback_query_handler(lambda c: c.data.startswith("take_pass:"))
 async def take_pass(call: types.CallbackQuery):
