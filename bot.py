@@ -54,20 +54,6 @@ dp = Dispatcher(bot)
 data = load_json(DATA_FILE, {"users":{}, "admin_notifs": {}})
 ads = load_json(ADS_FILE, {"driver":{}, "passenger":{}})
 
-
-ADS_FILE = "ads.json"
-
-def load_json(path):
-    with open(path, "r", encoding="utf-8") as f:
-        return json.load(f)
-
-def save_json(path, data):
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2, ensure_ascii=False)
-
-ads = load_json(ADS_FILE)
-
-
 # ---------------- KEYBOARDS ----------------
 def main_menu(is_admin=False):
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
@@ -395,26 +381,28 @@ async def driver_new_ad(message: types.Message):
     save_json(DATA_FILE, data)
     await message.answer("✍️ E’lon matnini yuboring:", reply_markup=back_btn())
 
-# ---------------- DRIVER HANDLERS ----------------
-@dp.message_handler(lambda m: data['users'].get(str(m.from_user.id), {}).get('state') == "driver_text")
-async def driver_get_text(message: types.Message):
-    uid = str(message.from_user.id)
-    data['users'][uid]['driver_temp']['text'] = message.text
-    data['users'][uid]['state'] = "driver_photo"
-    save_json(DATA_FILE, data)
-    await message.answer("📸 Mashina rasmini yuboring (majburiy):", reply_markup=back_btn())
-
 @dp.message_handler(content_types=['photo'])
 async def driver_get_photo(message: types.Message):
     uid = str(message.from_user.id)
-    if data.get('users', {}).get(uid, {}).get('state') != "driver_photo":
-        # foydalanuvchi hali yo'q bo'lsa, default holat
-        data.setdefault('users', {})[uid] = {'state': None}
+
+    if uid not in data['users']:
+        data['users'][uid] = {
+            "state": None,
+            "driver_temp": {},
+            "pass_temp": {}
+        }
+
+    if data['users'][uid].get('state') != "driver_photo":
         return
+
     file_id = message.photo[-1].file_id
+
+    data['users'][uid].setdefault('driver_temp', {})
     data['users'][uid]['driver_temp']['photo'] = file_id
+
     data['users'][uid]['state'] = "driver_interval"
     save_json(DATA_FILE, data)
+
     await message.answer("⏱ E’lon qanchada yuborilsin?", reply_markup=interval_kb())
 
 @dp.message_handler(lambda m: data['users'].get(str(m.from_user.id), {}).get('state') == "driver_interval")
@@ -431,12 +419,11 @@ async def driver_get_interval(message: types.Message):
     }
 
     if text not in mapping:
-        return await message.answer(
-            "❌ Faqat tugmalardan tanlang!",
-            reply_markup=interval_kb()
-        )
+        return await message.answer("❌ Faqat tugmalardan tanlang!", reply_markup=interval_kb())
 
+    data['users'][uid].setdefault('driver_temp', {})
     data['users'][uid]['driver_temp']['interval'] = mapping[text]
+
     data['users'][uid]['state'] = "driver_confirm"
     save_json(DATA_FILE, data)
 
