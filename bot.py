@@ -81,11 +81,11 @@ def back_btn():
     kb.add("◀️ Orqaga")
     return kb
 
-def driver_main_kb():
-    # after approval show minimal options (no "Davom etish")
-    kb = ReplyKeyboardMarkup(resize_keyboard=True)
-    kb.add("📣 E’lon berish", "⏸ To‘xtatish")
-    kb.add("🆕 Yangi e’lon", "◀️ Orqaga")
+def driver_main_inline():
+    kb = InlineKeyboardMarkup()
+    kb.add(InlineKeyboardButton("📣 E’lon berish", callback_data="drv_ad"))
+    kb.add(InlineKeyboardButton("⏸ To‘xtatish", callback_data="drv_stop"))
+    kb.add(InlineKeyboardButton("🆕 Yangi e’lon", callback_data="drv_new"))
     return kb
 
 # ---------------- START ----------------
@@ -116,12 +116,11 @@ async def start_cmd(message: types.Message):
     is_admin = int(message.from_user.id) in ADMINS
     await message.answer("<b>Salom!</b> Siz kimsiz? Tanlang:", reply_markup=main_menu(is_admin=is_admin))
 
-# ---------------- HAYDOVCHI SECTION ----------------
 @dp.message_handler(lambda m: m.text == "🚘 Haydovchi")
 async def driver_section(message: types.Message):
     uid = str(message.from_user.id)
 
-    # Agar foydalanuvchi ma'lumotlari yo'q bo'lsa yarating (xavfsizlik uchun)
+    # user yo‘q bo‘lsa yaratamiz
     if uid not in data['users']:
         data['users'][uid] = {
             "role": None,
@@ -135,30 +134,48 @@ async def driver_section(message: types.Message):
         }
         save_json(DATA_FILE, data)
 
-    # Agar user admin bo'lsa — avtomatik tasdiqlangan haydovchi qilib qo'yamiz
-    if int(uid) in ADMINS or int(message.from_user.id) in ADMINS:
-        # agar hali approved bo'lmasa — approved qilamiz
-        if data['users'][uid].get('driver_status') != "approved":
-            data['users'][uid]['driver_status'] = "approved"
-            # default: pauza o'chirilgan bo'lsin
-            data['users'][uid]['driver_paused'] = False
-            save_json(DATA_FILE, data)
-        # bevosita haydovchi bo'limiga kirishi uchun xabar
-        return await message.answer("Haydovchi bo‘limi (admin):", reply_markup=driver_main_kb())
+    u = data['users'][uid]
 
-    u = data['users'].get(uid, {"driver_status": "none"})
+    # 🔴 ADMIN → avtomatik approved
+    if int(message.from_user.id) in ADMINS:
+        u['driver_status'] = "approved"
+        u['driver_paused'] = False
+        save_json(DATA_FILE, data)
+
+        return await message.answer(
+            "🚘 Haydovchi bo‘limi (admin):",
+            reply_markup=driver_main_inline()
+        )
+
+    # ❌ hali haydovchi emas
     if u['driver_status'] == "none":
-        kb = ReplyKeyboardMarkup(resize_keyboard=True)
-        kb.add("📨 Haydovchi bo‘lish uchun ariza yuborish", "◀️ Orqaga")
-        return await message.answer("Siz hali haydovchi emassiz. Ariza yuboring.", reply_markup=kb)
+        kb = InlineKeyboardMarkup().add(
+            InlineKeyboardButton("📨 Ariza yuborish", callback_data="apply_driver")
+        )
+        return await message.answer(
+            "❌ Siz hali haydovchi emassiz",
+            reply_markup=kb
+        )
+
+    # ⏳ pending
     if u['driver_status'] == "pending":
-        return await message.answer("⏳ Arizangiz admin tomonidan ko‘rib chiqilmoqda…", reply_markup=back_btn())
+        return await message.answer("⏳ Arizangiz ko‘rib chiqilmoqda...")
+
+    # ❌ rejected
     if u['driver_status'] == "rejected":
-        kb = ReplyKeyboardMarkup(resize_keyboard=True)
-        kb.add("📨 Haydovchi bo‘lish uchun ariza yuborish", "◀️ Orqaga")
-        return await message.answer("❌ Admin arizani rad etgan. Yana ariza yuborishingiz mumkin.", reply_markup=kb)
-    # Tasdiqlangan haydovchi
-    await message.answer("Haydovchi bo‘limi:", reply_markup=driver_main_kb())
+        kb = InlineKeyboardMarkup().add(
+            InlineKeyboardButton("📨 Qayta ariza yuborish", callback_data="apply_driver")
+        )
+        return await message.answer(
+            "❌ Ariza rad etilgan",
+            reply_markup=kb
+        )
+
+    # ✅ APPROVED
+    await message.answer(
+        "🚘 Haydovchi bo‘limi:",
+        reply_markup=driver_main_inline()
+    )
 
 # ---------------- YOLOVCHI SECTION ----------------
 @dp.message_handler(lambda m: m.text == "🧍 Yo‘lovchi")
@@ -564,19 +581,16 @@ async def new_driver_ad(message: types.Message):
 
 import re
 
-@dp.message_handler(lambda m: m.text == "🧍 Yo‘lovchi")
-async def passenger_section(message: types.Message):
-    kb = InlineKeyboardMarkup().add(
-        InlineKeyboardButton("📝 E’lon berish", callback_data="pass_ad")
-    )
-    await message.answer("Yo‘lovchi bo‘limi:", reply_markup=kb)
-
-
 @dp.callback_query_handler(lambda c: c.data == "pass_ad")
 async def pass_ad(call: types.CallbackQuery):
     uid = str(call.from_user.id)
+
+    if uid not in data['users']:
+        data['users'][uid] = {}
+
     data['users'][uid]['state'] = "pass_text"
     save_json(DATA_FILE, data)
+
     await call.message.answer("✍️ E’loningizni yuboring:")
 
 
