@@ -415,15 +415,36 @@ async def driver_get_photo(message: types.Message):
     data['users'][uid]['driver_temp']['photo'] = file_id
     data['users'][uid]['state'] = "driver_interval"
     save_json(DATA_FILE, data)
-    await message.answer("⏱ Necha daqiqada qayta yuborilsin? (masalan: 1)", reply_markup=back_btn())
+    await message.answer("⏱ E’lon qanchada yuborilsin?", reply_markup=interval_kb())
 
 @dp.message_handler(lambda m: data['users'].get(str(m.from_user.id), {}).get('state') == "driver_interval")
 async def driver_get_interval(message: types.Message):
     uid = str(message.from_user.id)
-    try:
-        interval = int(message.text)
-    except:
-        return await message.answer("Faqat son kiriting!", reply_markup=back_btn())
+    text = message.text
+
+    mapping = {
+        "5 minut": 5,
+        "10 minut": 10,
+        "15 minut": 15,
+        "20 minut": 20,
+        "30 minut": 30
+    }
+
+    if text not in mapping:
+        return await message.answer(
+            "❌ Faqat tugmalardan tanlang!",
+            reply_markup=interval_kb()
+        )
+
+    data['users'][uid]['driver_temp']['interval'] = mapping[text]
+    data['users'][uid]['state'] = "driver_confirm"
+    save_json(DATA_FILE, data)
+
+    kb = ReplyKeyboardMarkup(resize_keyboard=True)
+    kb.add("✅ Tasdiqlash", "🗑 Tozalash")
+    kb.add("◀️ Orqaga")
+
+    await message.answer("Hammasi tayyor. Tasdiqlaysizmi?", reply_markup=kb)
     data['users'][uid]['driver_temp']['interval'] = interval
     data['users'][uid]['state'] = "driver_confirm"
     save_json(DATA_FILE, data)
