@@ -445,14 +445,6 @@ async def driver_get_interval(message: types.Message):
     kb.add("◀️ Orqaga")
 
     await message.answer("Hammasi tayyor. Tasdiqlaysizmi?", reply_markup=kb)
-    data['users'][uid]['driver_temp']['interval'] = interval
-    data['users'][uid]['state'] = "driver_confirm"
-    save_json(DATA_FILE, data)
-    kb = ReplyKeyboardMarkup(resize_keyboard=True)
-    # Tasdiqlash/Tozalash va Orqaga — lekin "Davom etish" olib tashlandi
-    kb.add("✅ Tasdiqlash", "🗑 Tozalash")
-    kb.add("◀️ Orqaga")
-    await message.answer("Hammasi tayyor. Tasdiqlaysizmi?", reply_markup=kb)
 
 @dp.message_handler(lambda m: m.text == "🗑 Tozalash")
 async def driver_clear(message: types.Message):
