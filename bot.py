@@ -16,7 +16,7 @@ ADMINS = [6302873072]
 BOT_USERNAME = "@rishtonBogdodToshkentTaxi_bot"
 
 # Bu yerga 1 yoki undan ortiq kanal id larini qo'yishingiz mumkin.
-DRIVER_CHANNELS = [-1003322681147]
+DRIVER_CHANNELS = [-1003640341366]
 PASSENGER_CHANNELS = [-1003888459573]
 
 DATA_FILE = Path("data.json")
