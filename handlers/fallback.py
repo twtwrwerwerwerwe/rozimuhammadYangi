@@ -14,7 +14,22 @@ from aiogram.dispatcher import FSMContext
 from bot_instance import dp
 from config import ADMINS
 from storage import get_user
-from keyboards import main_menu
+from keyboards import main_menu_kb
+
+
+@dp.message_handler(content_types=["sticker"], state="*")
+async def capture_sticker_id(message: types.Message, state: FSMContext):
+    """Admin botga stiker yuborsa — uning file_id'sini qaytarib beradi.
+    Shu ID'ni config.py dagi STICKERS lug'atiga qo'yish orqali bot
+    o'sha stikerni muhim daqiqalarda avtomatik yuboradi."""
+    if message.from_user.id not in ADMINS:
+        return await fallback_message(message, state)
+    await message.answer(
+        "🎟 Bu stikerning file_id'si:\n\n"
+        f"<code>{message.sticker.file_id}</code>\n\n"
+        "Shu qatorni nusxalab, <code>config.py</code> ichidagi "
+        "<code>STICKERS</code> lug‘atiga qo‘ying.",
+    )
 
 
 @dp.message_handler(content_types=types.ContentTypes.ANY, state="*")
@@ -24,7 +39,7 @@ async def fallback_message(message: types.Message, state: FSMContext):
     await state.finish()
     await message.answer(
         "🤔 Buni tushunmadim. Quyidagi menyudan kerakli bo‘limni tanlang:",
-        reply_markup=main_menu(is_admin=message.from_user.id in ADMINS),
+        reply_markup=main_menu_kb(is_admin=message.from_user.id in ADMINS),
     )
 
 

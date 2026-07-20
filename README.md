@@ -43,6 +43,48 @@ konteyner butunlay qayta yaratilganda ham yo'qolmaydi.
 
 ---
 
+## 🎨 Upgrade #1.2 — dizayn, e'lon yuborilmaslik xatosi, stikerlar
+
+**1) "E'lon yuborildi deydi, lekin guruhga kelmaydi" — tuzatildi.**
+Sabab topildi: guruhga yuborishda xatolik chiqsa (masalan, bot
+guruhda administrator emas, yoki callback tugmasidagi `tel:` havolasi
+Telegram tomonidan rad etilsa), avvalgi kodda bu xatolik **jimgina
+yutib yuborilar edi** — bot "yuborildi" deb yozardi-yu, aslida hech
+narsa bormasdi. Endi:
+- Avval qo‘ng‘iroq tugmasi bilan yuboriladi;
+- Agar shu sabab xato chiqsa, qo‘ng‘iroq tugmasisiz qayta uriniladi;
+- Baribir muvaffaqiyatsiz bo‘lsa, **sizga aniq xato matni bilan xabar
+  beriladi** ("guruhga yuborilmadi, sababi: ...") — shunda muammoni
+  darhol tushunib, tuzatasiz (odatda sabab: bot kanal/guruhda admin
+  emas, yoki `config.py`dagi `DRIVER_CHANNELS` ID noto‘g‘ri).
+
+**2) Interval mantig'i aniqlashtirildi.** Interval tanlab
+"Tasdiqlash"ni bosgan zahoti e'lon **darhol** guruhga yuboriladi,
+so‘ng har tanlangan daqiqada (masalan 10 daqiqa) avtomatik qayta
+yuborilib turadi — boshqacha (kutib turib keyin yuborish) endi yo‘q.
+
+**3) Deyarli barcha tugmalar endi INLINE (xabar ostida).** Yozish
+maydonini to'sadigan katta reply-klaviaturalar olib tashlandi — asosiy
+menyu, haydovchi bo‘limi, yo‘lovchi bo‘limi, yo‘nalish tanlash va h.k.
+endi xabar ostida chiroyli tugmalar sifatida chiqadi. Faqat ikkita
+joy — telefon raqamni tugma orqali yuborish va lokatsiyani tugma
+orqali yuborish — Telegram’ning o‘zi talab qilgani sababli oddiy
+klaviatura bo‘lib qoladi (buni o'zgartirib bo'lmaydi).
+
+**4) Jonli (animatsiyali) stikerlar qo‘shildi.** Haydovchi
+tasdiqlanganda, e'lon guruhga yuborilganda, to‘lov tasdiqlanganda va
+zakaz qabul qilinganda bot endi (agar sozlangan bo‘lsa) stiker ham
+yuboradi. Stiker ID'sini olish JUDA OSON:
+1. Botga istalgan animatsiyali stikerni yuboring (o‘zingiz — admin
+   sifatida).
+2. Bot sizga o‘sha stikerning `file_id`'sini yozib beradi.
+3. Shu ID'ni `config.py` dagi `STICKERS` lug‘atiga qo‘ying (masalan
+   `"driver_approved": "CAACAgIA..."`).
+Sozlanmagan holatda ("") bot shunchaki stiker yubormaydi — hech
+qanday xatolikka olib kelmaydi.
+
+---
+
 ## 📁 Loyiha tuzilishi
 
 ```

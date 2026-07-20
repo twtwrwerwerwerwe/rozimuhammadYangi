@@ -11,53 +11,62 @@ from aiogram import types
 from aiogram.dispatcher import FSMContext
 
 from bot_instance import bot, dp
-from handlers.start import do_back
 from config import ADMINS, PASSENGER_CHANNELS, PASSENGER_ROUTES
 from storage import get_user, save_users, ads_store, save_ads, next_ad_number
 from states import PassengerStates
+from stickers import send_sticker_safe
 from utils import normalize_phone, new_id, display_name
 from keyboards import (
-    back_kb, main_menu, passenger_entry_kb, phone_request_kb,
+    main_menu_kb, passenger_entry_kb, phone_request_kb, REMOVE_KB,
     route_kb, location_choice_kb, passenger_channel_kb, passenger_channel_taken_kb,
     passenger_ad_full_kb, map_choice_kb, open_map_link_kb, driver_profile_kb,
+    cancel_inline_kb,
 )
 
 
 # ==================== KIRISH ====================
-@dp.message_handler(lambda m: m.text == "🧍 Yo‘lovchi", state="*")
-async def passenger_section(message: types.Message, state: FSMContext):
+@dp.callback_query_handler(lambda c: c.data == "menu:passenger", state="*")
+async def passenger_section(call: types.CallbackQuery, state: FSMContext):
     await state.finish()
-    uid = str(message.from_user.id)
-    get_user(uid)
-    await message.answer(
-        "🧍 <b>Yo‘lovchi bo‘limi</b>\n\nHaydovchi chaqirish uchun quyidagi tugmani bosing:",
-        reply_markup=passenger_entry_kb(),
-    )
+    get_user(str(call.from_user.id))
+    try:
+        await call.message.edit_text(
+            "🧍 <b>Yo‘lovchi bo‘limi</b>\n\nHaydovchi chaqirish uchun quyidagi tugmani bosing:",
+            reply_markup=passenger_entry_kb(),
+        )
+    except Exception:
+        await call.message.answer(
+            "🧍 <b>Yo‘lovchi bo‘limi</b>\n\nHaydovchi chaqirish uchun quyidagi tugmani bosing:",
+            reply_markup=passenger_entry_kb(),
+        )
+    await call.answer()
 
 
-@dp.message_handler(lambda m: m.text == "🚖 Haydovchi chaqirish", state="*")
-async def passenger_order_start(message: types.Message, state: FSMContext):
+@dp.callback_query_handler(lambda c: c.data == "pass_order", state="*")
+async def passenger_order_start(call: types.CallbackQuery, state: FSMContext):
     await state.finish()
-    uid = str(message.from_user.id)
+    uid = str(call.from_user.id)
     u = get_user(uid)
 
     if u.get("phone"):
         await state.update_data(passenger_phone=u["phone"])
-        await message.answer("📍 Yo‘nalishni tanlang:", reply_markup=route_kb())
-        return
+        try:
+            await call.message.edit_text("📍 Yo‘nalishni tanlang:", reply_markup=route_kb())
+        except Exception:
+            await call.message.answer("📍 Yo‘nalishni tanlang:", reply_markup=route_kb())
+        return await call.answer()
 
     await state.set_state(PassengerStates.waiting_phone)
-    await message.answer(
+    await call.message.answer(
         "📱 Iltimos, telefon raqamingizni yuboring.\n"
         "Tugma orqali yoki qo‘lda kiritishingiz mumkin (masalan: 901234567).",
         reply_markup=phone_request_kb(),
     )
+    await call.answer()
 
 
 @dp.message_handler(content_types=["contact", "text"], state=PassengerStates.waiting_phone)
 async def passenger_get_phone(message: types.Message, state: FSMContext):
-    if message.text == "◀️ Orqaga":
-        return await do_back(message, state)
     raw = message.contact.phone_number if message.contact else message.text
     phone = normalize_phone(raw)
     if not phone:
@@ -72,54 +81,62 @@ async def passenger_get_phone(message: types.Message, state: FSMContext):
     await save_users()
 
     await state.finish()
-    await message.answer(f"✅ Raqamingiz saqlandi: <code>{phone}</code>")
+    await message.answer(f"✅ Raqamingiz saqlandi: <code>{phone}</code>", reply_markup=REMOVE_KB)
     await message.answer("📍 Yo‘nalishni tanlang:", reply_markup=route_kb())
 
 
 # ==================== YO'NALISH ====================
-@dp.message_handler(lambda m: m.text == "✍️ O‘zim yozaman", state="*")
-async def passenger_custom_route(message: types.Message, state: FSMContext):
+@dp.callback_query_handler(lambda c: c.data == "route:custom", state="*")
+async def passenger_custom_route(call: types.CallbackQuery, state: FSMContext):
     await state.set_state(PassengerStates.waiting_route_custom)
-    await message.answer("✍️ Yo‘nalishni o‘zingiz yozing (masalan: Rishton → Toshkent):", reply_markup=back_kb())
+    try:
+        await call.message.edit_text(
+            "✍️ Yo‘nalishni o‘zingiz yozing (masalan: Rishton → Toshkent):",
+            reply_markup=cancel_inline_kb(),
+        )
+    except Exception:
+        await call.message.answer(
+            "✍️ Yo‘nalishni o‘zingiz yozing (masalan: Rishton → Toshkent):",
+            reply_markup=cancel_inline_kb(),
+        )
+    await call.answer()
 
 
 @dp.message_handler(state=PassengerStates.waiting_route_custom, content_types=["text"])
 async def passenger_route_custom_got(message: types.Message, state: FSMContext):
-    if message.text == "◀️ Orqaga":
-        return await do_back(message, state)
     await state.update_data(passenger_route=message.text.strip())
     await state.set_state(PassengerStates.waiting_order_text)
-    await _ask_order_text(message)
+    await _ask_order_text(message.chat.id)
 
 
-def _strip_route_emoji(text: str) -> str:
-    return text[2:].strip() if text.startswith("🚗") else text.strip()
-
-
-@dp.message_handler(
-    lambda m: m.text and _strip_route_emoji(m.text) in PASSENGER_ROUTES,
-    state="*",
-)
-async def passenger_route_pick(message: types.Message, state: FSMContext):
-    route = _strip_route_emoji(message.text)
+@dp.callback_query_handler(lambda c: c.data.startswith("route:idx:"), state="*")
+async def passenger_route_pick(call: types.CallbackQuery, state: FSMContext):
+    idx = int(call.data.split(":")[2])
+    if idx < 0 or idx >= len(PASSENGER_ROUTES):
+        return await call.answer("❌ Yo‘nalish topilmadi.", show_alert=True)
+    route = PASSENGER_ROUTES[idx]
     await state.update_data(passenger_route=route)
     await state.set_state(PassengerStates.waiting_order_text)
-    await _ask_order_text(message)
+    try:
+        await call.message.edit_reply_markup()
+    except Exception:
+        pass
+    await _ask_order_text(call.message.chat.id)
+    await call.answer()
 
 
-async def _ask_order_text(message: types.Message):
-    await message.answer(
+async def _ask_order_text(chat_id: int):
+    await bot.send_message(
+        chat_id,
         "✍️ Endi buyurtmangizni yozing.\n\n"
         "<i>Masalan: Rishtondan Toshkentga 2 ta odam bor</i>",
-        reply_markup=back_kb(),
+        reply_markup=cancel_inline_kb(),
     )
 
 
 # ==================== MATN ====================
 @dp.message_handler(state=PassengerStates.waiting_order_text, content_types=["text"])
 async def passenger_order_text_got(message: types.Message, state: FSMContext):
-    if message.text == "◀️ Orqaga":
-        return await do_back(message, state)
     await state.update_data(passenger_text=message.text.strip())
     await state.set_state(PassengerStates.waiting_location)
     await message.answer(
@@ -134,28 +151,30 @@ async def passenger_order_text_got(message: types.Message, state: FSMContext):
 async def passenger_location_got(message: types.Message, state: FSMContext):
     data = await state.get_data()
     loc = {"lat": message.location.latitude, "lon": message.location.longitude}
-    await _submit_passenger_ad(message, data, loc)
+    await _submit_passenger_ad(message.from_user.id, data, loc)
     await state.finish()
     await message.answer(
         "✅ Zakaz qabul qilindi! Shofir qabul qilishi kutilmoqda.",
-        reply_markup=main_menu(is_admin=message.from_user.id in ADMINS),
+        reply_markup=REMOVE_KB,
     )
+    await message.answer("🏠 Asosiy menyu:", reply_markup=main_menu_kb(is_admin=message.from_user.id in ADMINS))
 
 
 @dp.message_handler(lambda m: m.text == "➡️ Lokatsiyasiz davom etish", state=PassengerStates.waiting_location)
 async def passenger_location_skip(message: types.Message, state: FSMContext):
     data = await state.get_data()
-    await _submit_passenger_ad(message, data, None)
+    await _submit_passenger_ad(message.from_user.id, data, None)
     await state.finish()
     await message.answer(
         "✅ E’lonimiz shofirlar guruhimizga yuborildi. Qabul qilinishi kutilmoqda.",
-        reply_markup=main_menu(is_admin=message.from_user.id in ADMINS),
+        reply_markup=REMOVE_KB,
     )
+    await message.answer("🏠 Asosiy menyu:", reply_markup=main_menu_kb(is_admin=message.from_user.id in ADMINS))
 
 
 # ==================== E'LONNI SAQLASH VA GURUHGA YUBORISH ====================
-async def _submit_passenger_ad(message: types.Message, data: dict, location):
-    uid = str(message.from_user.id)
+async def _submit_passenger_ad(from_uid: int, data: dict, location):
+    uid = str(from_uid)
     ad_id = new_id()
     number = next_ad_number()
 
@@ -266,6 +285,7 @@ async def take_passenger_ad(call: types.CallbackQuery):
         pass
     await call.message.answer("✅ Siz ushbu zakazni qabul qildingiz. Yo‘lovchi bilan bog‘laning!")
     await call.answer()
+    await send_sticker_safe(int(uid), "order_taken")
 
     # yo'lovchiga xabar
     passenger_uid = ad["user"]

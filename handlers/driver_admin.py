@@ -11,15 +11,15 @@ from config import ADMINS
 from storage import get_user, save_users, users_store
 from states import DriverStates
 from utils import display_name
+from stickers import send_sticker_safe
 from keyboards import (
-    driver_apply_kb, back_kb, main_menu,
+    driver_apply_kb, main_menu_kb, driver_main_kb,
     admin_driver_decision_kb, admin_driver_manage_kb, phone_request_kb,
 )
 
 
-async def notify_admins_new_application(message: types.Message, uid: str):
+async def notify_admins_new_application(uid: str, full_name: str, username: str):
     kb = admin_driver_decision_kb(uid)
-    username = message.from_user.username
     username_display = f"@{username}" if username else "—"
     notifs = []
     for admin in ADMINS:
@@ -27,7 +27,7 @@ async def notify_admins_new_application(message: types.Message, uid: str):
             msg = await bot.send_message(
                 admin,
                 f"🚘 <b>Yangi haydovchilik arizasi</b>\n\n"
-                f"👤 Ism: <b>{message.from_user.full_name}</b>\n"
+                f"👤 Ism: <b>{full_name}</b>\n"
                 f"🔗 Username: {username_display}\n"
                 f"🆔 ID: <code>{uid}</code>",
                 reply_markup=kb,
@@ -39,34 +39,32 @@ async def notify_admins_new_application(message: types.Message, uid: str):
     await save_users()
 
 
-@dp.message_handler(lambda m: m.text == "🚘 Haydovchi", state="*")
-async def driver_section(message: types.Message, state: FSMContext):
-    await state.finish()
-    uid = str(message.from_user.id)
-    u = get_user(uid)
+async def render_driver_section(chat_id: int, uid: int, state: FSMContext):
+    uid_s = str(uid)
+    u = get_user(uid_s)
 
-    if message.from_user.id in ADMINS:
+    if uid in ADMINS:
         if u["driver_status"] != "approved":
             u["driver_status"] = "approved"
             u["driver_paused"] = False
             u["subscription"]["active"] = True
-        await save_users()
-        from keyboards import driver_main_kb
-        return await message.answer("Haydovchi bo‘limi (admin):", reply_markup=driver_main_kb())
+            await save_users()
+        return await bot.send_message(chat_id, "Haydovchi bo‘limi (admin):", reply_markup=driver_main_kb())
 
     status = u["driver_status"]
     if status in ("none", "rejected"):
         text = "Siz hali haydovchi emassiz. Ariza yuboring." if status == "none" \
             else "❌ Admin arizangizni rad etgan edi. Xohlasangiz qayta ariza yuborishingiz mumkin."
-        return await message.answer(text, reply_markup=driver_apply_kb())
+        return await bot.send_message(chat_id, text, reply_markup=driver_apply_kb())
 
     if status == "pending":
-        return await message.answer("⏳ Arizangiz admin tomonidan ko‘rib chiqilmoqda…", reply_markup=back_kb())
+        return await bot.send_message(chat_id, "⏳ Arizangiz admin tomonidan ko‘rib chiqilmoqda…", reply_markup=main_menu_kb())
 
     # status == approved
     if not u.get("phone"):
         await state.set_state(DriverStates.waiting_phone)
-        return await message.answer(
+        return await bot.send_message(
+            chat_id,
             "📱 Iltimos, telefon raqamingizni yuboring.\n"
             "Tugma orqali yoki qo‘lda kiritishingiz mumkin (masalan: 901234567).",
             reply_markup=phone_request_kb(),
@@ -74,31 +72,44 @@ async def driver_section(message: types.Message, state: FSMContext):
 
     if not u["subscription"].get("active"):
         from handlers.payment import show_tariffs
-        return await show_tariffs(message)
+        return await show_tariffs(chat_id)
 
-    from keyboards import driver_main_kb
-    await message.answer("Haydovchi bo‘limi:", reply_markup=driver_main_kb())
+    await bot.send_message(chat_id, "Haydovchi bo‘limi:", reply_markup=driver_main_kb())
 
 
-@dp.message_handler(lambda m: m.text == "📨 Haydovchi bo‘lish uchun ariza yuborish")
-async def driver_apply(message: types.Message):
-    uid = str(message.from_user.id)
+@dp.callback_query_handler(lambda c: c.data == "menu:driver", state="*")
+async def driver_section_cb(call: types.CallbackQuery, state: FSMContext):
+    await state.finish()
+    try:
+        await call.message.edit_reply_markup()
+    except Exception:
+        pass
+    await render_driver_section(call.message.chat.id, call.from_user.id, state)
+    await call.answer()
+
+
+@dp.callback_query_handler(lambda c: c.data == "drv_apply")
+async def driver_apply(call: types.CallbackQuery):
+    uid = str(call.from_user.id)
     u = get_user(uid)
 
     if u["driver_status"] == "pending":
-        return await message.answer("Siz allaqachon ariza yuborgansiz. Iltimos kuting.", reply_markup=back_kb())
+        return await call.answer("Siz allaqachon ariza yuborgansiz. Iltimos kuting.", show_alert=True)
     if u["driver_status"] == "approved":
-        from keyboards import driver_main_kb
-        return await message.answer("Siz allaqachon tasdiqlangan haydovchisiz.", reply_markup=driver_main_kb())
+        return await call.answer("Siz allaqachon tasdiqlangan haydovchisiz.", show_alert=True)
 
     u["driver_status"] = "pending"
     u["driver_paused"] = True
-    u["full_name"] = message.from_user.full_name or u.get("full_name", "")
-    u["username"] = message.from_user.username or u.get("username", "")
+    u["full_name"] = call.from_user.full_name or u.get("full_name", "")
+    u["username"] = call.from_user.username or u.get("username", "")
     await save_users()
 
-    await notify_admins_new_application(message, uid)
-    await message.answer("✅ Arizangiz adminga yuborildi! ⏳ Iltimos, javobini kuting.", reply_markup=back_kb())
+    await notify_admins_new_application(uid, u["full_name"], u["username"])
+    try:
+        await call.message.edit_text("✅ Arizangiz adminga yuborildi! ⏳ Iltimos, javobini kuting.")
+    except Exception:
+        await call.message.answer("✅ Arizangiz adminga yuborildi! ⏳ Iltimos, javobini kuting.")
+    await call.answer()
 
 
 @dp.callback_query_handler(lambda c: c.data and c.data.split(":")[0] in
@@ -119,7 +130,6 @@ async def admin_driver_action(call: types.CallbackQuery):
         await save_users()
         await _update_admin_notifs(uid, "✅ Amal bajarildi (tasdiqlandi)")
 
-        # haydovchidan telefon raqamini so'raymiz
         try:
             state = dp.current_state(chat=int(uid), user=int(uid))
             await state.set_state(DriverStates.waiting_phone)
@@ -130,6 +140,7 @@ async def admin_driver_action(call: types.CallbackQuery):
                 "(masalan: 901234567).",
                 reply_markup=phone_request_kb(),
             )
+            await send_sticker_safe(int(uid), "driver_approved")
         except Exception:
             pass
         await call.answer("Tasdiqlandi ✅")
@@ -143,7 +154,7 @@ async def admin_driver_action(call: types.CallbackQuery):
             await bot.send_message(
                 int(uid),
                 "❌ Admin arizangizni rad etdi. Xohlasangiz qayta ariza yuborishingiz mumkin.",
-                reply_markup=main_menu(),
+                reply_markup=main_menu_kb(),
             )
         except Exception:
             pass
@@ -171,7 +182,7 @@ async def admin_driver_action(call: types.CallbackQuery):
         await save_users()
         await call.answer("Foydalanuvchi chiqarib tashlandi.")
         try:
-            await bot.send_message(int(uid), "❌ Siz haydovchilar ro‘yxatidan chiqarib tashlandingiz.", reply_markup=main_menu())
+            await bot.send_message(int(uid), "❌ Siz haydovchilar ro‘yxatidan chiqarib tashlandingiz.", reply_markup=main_menu_kb())
         except Exception:
             pass
 
@@ -180,7 +191,6 @@ async def admin_driver_action(call: types.CallbackQuery):
         await save_users()
         await call.answer("Foydalanuvchi haydovchi sifatida qoldirildi.")
         try:
-            from keyboards import driver_main_kb
             await bot.send_message(int(uid), "✅ Siz haydovchi sifatida qoldirildingiz.", reply_markup=driver_main_kb())
         except Exception:
             pass
@@ -195,10 +205,11 @@ async def _update_admin_notifs(uid: str, new_text: str):
             pass
 
 
-@dp.message_handler(lambda m: m.text == "👥 Haydovchilar")
-async def admin_drivers_list(message: types.Message):
-    if message.from_user.id not in ADMINS:
-        return await message.answer("Faqat adminlar uchun.")
+@dp.callback_query_handler(lambda c: c.data == "menu:admin_drivers", state="*")
+async def admin_drivers_list(call: types.CallbackQuery, state: FSMContext):
+    if call.from_user.id not in ADMINS:
+        return await call.answer("Faqat adminlar uchun.", show_alert=True)
+    await state.finish()
 
     kb = types.InlineKeyboardMarkup()
     found = False
@@ -206,6 +217,17 @@ async def admin_drivers_list(message: types.Message):
         if u.get("driver_status") == "approved":
             kb.add(types.InlineKeyboardButton(display_name(u, uid), callback_data=f"drv_view:{uid}"))
             found = True
+    kb.add(types.InlineKeyboardButton("🏠 Bosh menyu", callback_data="menu:home"))
+
     if not found:
-        return await message.answer("Hozircha tasdiqlangan haydovchilar yo‘q.")
-    await message.answer("📋 Tasdiqlangan haydovchilar ro‘yxati:", reply_markup=kb)
+        try:
+            await call.message.edit_text("Hozircha tasdiqlangan haydovchilar yo‘q.", reply_markup=kb)
+        except Exception:
+            await call.message.answer("Hozircha tasdiqlangan haydovchilar yo‘q.", reply_markup=kb)
+        return await call.answer()
+
+    try:
+        await call.message.edit_text("📋 Tasdiqlangan haydovchilar ro‘yxati:", reply_markup=kb)
+    except Exception:
+        await call.message.answer("📋 Tasdiqlangan haydovchilar ro‘yxati:", reply_markup=kb)
+    await call.answer()

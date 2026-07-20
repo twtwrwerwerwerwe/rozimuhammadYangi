@@ -70,3 +70,23 @@ PASSENGER_ROUTES = [
 
 # Haydovchi e'loni necha daqiqada bir qayta yuborilishi mumkin bo'lgan variantlar
 AD_INTERVALS = [5, 10, 15, 20, 30]
+
+# ==================== JONLI (ANIMATSIYALI) STIKERLAR ====================
+# Bu yerga animatsiyali stikerning file_id'sini kiriting — shunda bot
+# muhim daqiqalarda (haydovchi tasdiqlandi, e'lon yuborildi, to'lov
+# tasdiqlandi va h.k.) shu stikerni yuboradi. Bo'sh ("") qoldirilsa,
+# bot shunchaki stiker yubormaydi — hech qanday xatolik chiqmaydi.
+#
+# STIKER FILE_ID QANDAY OLINADI (juda oson):
+#   1) Botga istalgan animatsiyali stikerni yuboring (shaxsiy chatda).
+#   2) Agar siz ADMINS ro'yxatida bo'lsangiz, bot sizga o'sha
+#      stikerning file_id'sini avtomatik yozib beradi.
+#   3) Shu ID'ni pastdagi mos qatorga qo'yib qo'ying.
+STICKERS = {
+    "success": "",            # umumiy muvaffaqiyat (masalan ✅ tasdiqlandi)
+    "driver_approved": "",    # haydovchi tasdiqlanganda
+    "ad_posted": "",          # e'lon guruhga yuborilganda
+    "payment_approved": "",   # to'lov tasdiqlanganda
+    "order_taken": "",        # yo'lovchi zakazi qabul qilinganda
+}
+

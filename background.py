@@ -5,22 +5,32 @@ background.py — fonda ishlaydigan vazifalar:
   2) E'lon 12 soat bo'lganda eslatma, 24 soatda avtomatik to'xtatish
   3) Obuna muddati tugashiga 3 kun qolganda va tugagan kunda eslatma,
      muddat tugagach botdan foydalanish huquqini olib qo'yish
+
+MUHIM: guruhga qayta yuborish endi handlers.driver._broadcast_driver_ad
+funksiyasi orqali amalga oshiriladi — shu bilan xatolik sodir bo'lsa
+(masalan bot guruhda admin emas) jimgina yutib yuborilmaydi, aksincha
+log'ga yoziladi va zarur bo'lsa qayta urinadi.
 """
 import asyncio
 import time
+import logging
 
 from bot_instance import bot
 from config import (
-    DRIVER_CHANNELS, AD_AUTO_STOP_HOURS, AD_REMINDER_HOURS,
+    AD_AUTO_STOP_HOURS, AD_REMINDER_HOURS,
     REMINDER_DAYS_BEFORE, BACKGROUND_LOOP_INTERVAL,
 )
 from storage import ads_store, users_store, save_ads, save_users, get_user
 from utils import fmt_date
-from keyboards import driver_channel_ad_kb, main_menu, tariff_kb
+from keyboards import main_menu_kb, tariff_kb
+
+log = logging.getLogger(__name__)
 
 
 async def driver_ads_loop():
     """Haydovchi e'lonlarini davriy ravishda kanalga yuboradi."""
+    from handlers.driver import _broadcast_driver_ad  # aylanma import'dan qochish uchun shu yerda
+
     while True:
         now = time.time()
         changed = False
@@ -43,7 +53,7 @@ async def driver_ads_loop():
                                 int(uid),
                                 f"⏹ E’loningiz {AD_AUTO_STOP_HOURS} soat o‘tgani sababli "
                                 "avtomatik to‘xtatildi. Xohlasangiz qayta e’lon berishingiz mumkin.",
-                                reply_markup=main_menu(),
+                                reply_markup=main_menu_kb(),
                             )
                         except Exception:
                             pass
@@ -74,18 +84,13 @@ async def driver_ads_loop():
                 interval_seconds = ad.get("interval", 5) * 60
                 last = ad.get("last_sent", 0)
                 if last == 0 or (now - last) >= interval_seconds:
-                    driver = get_user(uid) if uid else {}
-                    kb = driver_channel_ad_kb(driver.get("phone"))
-                    for ch in DRIVER_CHANNELS:
-                        try:
-                            await bot.send_photo(ch, ad["photo"], caption=ad.get("text", ""), reply_markup=kb)
-                        except Exception:
-                            pass
-                    ad["last_sent"] = time.time()
+                    ok, err = await _broadcast_driver_ad(ad_id)
+                    if not ok:
+                        log.error("E'lon %s guruhga yuborilmadi: %s", ad_id, err)
                     changed = True
                     await asyncio.sleep(0.4)
             except Exception:
-                pass
+                log.exception("driver_ads_loop ichida kutilmagan xatolik (ad_id=%s)", ad_id)
 
         if changed:
             await save_ads()
@@ -148,7 +153,7 @@ async def subscription_watch_loop():
                     except Exception:
                         pass
             except Exception:
-                pass
+                log.exception("subscription_watch_loop ichida kutilmagan xatolik (uid=%s)", uid)
 
         if changed:
             await save_ads()

@@ -2,12 +2,14 @@
 """handlers/payment_admin.py — admin to'lovlarni tasdiqlash/rad etish."""
 import time
 from aiogram import types
+from aiogram.dispatcher import FSMContext
 
 from bot_instance import bot, dp
 from config import ADMINS, TARIFFS, ADMIN_PHONE, ADMIN_USERNAME
 from storage import get_user, save_users, payments_store, save_payments
-from utils import fmt_date
-from keyboards import driver_main_kb, contact_admin_kb, main_menu
+from stickers import send_sticker_safe
+from utils import fmt_date, display_name, fmt_money
+from keyboards import driver_main_kb, contact_admin_kb, admin_payment_decision_kb
 
 
 async def _update_payment_notifs(payment_id: str, new_text: str):
@@ -65,6 +67,7 @@ async def admin_payment_action(call: types.CallbackQuery):
                 f"Endi haydovchi bo‘limidan to‘liq foydalanishingiz mumkin! 🚕",
                 reply_markup=driver_main_kb(),
             )
+            await send_sticker_safe(int(uid), "payment_approved")
         except Exception:
             pass
         await call.answer("Tasdiqlandi ✅")
@@ -86,23 +89,27 @@ async def admin_payment_action(call: types.CallbackQuery):
         await call.answer("Rad etildi ❌")
 
 
-@dp.message_handler(lambda m: m.text == "💳 To‘lovlar")
-async def admin_payments_list(message: types.Message):
-    if message.from_user.id not in ADMINS:
-        return await message.answer("Faqat adminlar uchun.")
+@dp.callback_query_handler(lambda c: c.data == "menu:admin_payments", state="*")
+async def admin_payments_list(call: types.CallbackQuery, state: FSMContext):
+    if call.from_user.id not in ADMINS:
+        return await call.answer("Faqat adminlar uchun.", show_alert=True)
+    await state.finish()
 
     pending = [
         (pid, p) for pid, p in payments_store.data["payments"].items()
         if p["status"] == "pending"
     ]
     if not pending:
-        return await message.answer("✅ Hozircha kutilayotgan to‘lovlar yo‘q.")
+        try:
+            await call.message.edit_text("✅ Hozircha kutilayotgan to‘lovlar yo‘q.")
+        except Exception:
+            await call.message.answer("✅ Hozircha kutilayotgan to‘lovlar yo‘q.")
+        return await call.answer()
 
+    await call.answer(f"{len(pending)} ta kutilayotgan to‘lov topildi")
     for pid, p in pending:
         u = get_user(p["uid"])
         tariff = TARIFFS[p["tariff"]]
-        from keyboards import admin_payment_decision_kb
-        from utils import display_name, fmt_money
         caption = (
             f"💳 <b>To‘lov so‘rovi</b>\n\n"
             f"👤 {display_name(u, p['uid'])}\n"
@@ -111,6 +118,6 @@ async def admin_payments_list(message: types.Message):
         )
         kb = admin_payment_decision_kb(pid)
         if p.get("receipt_photo"):
-            await bot.send_photo(message.from_user.id, p["receipt_photo"], caption=caption, reply_markup=kb)
+            await bot.send_photo(call.from_user.id, p["receipt_photo"], caption=caption, reply_markup=kb)
         else:
-            await bot.send_message(message.from_user.id, caption, reply_markup=kb)
+            await bot.send_message(call.from_user.id, caption, reply_markup=kb)

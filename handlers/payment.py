@@ -10,7 +10,6 @@ from aiogram import types
 from aiogram.dispatcher import FSMContext
 
 from bot_instance import bot, dp
-from handlers.start import do_back
 from config import (
     TARIFFS, ADMINS, ADMIN_PHONE, ADMIN_USERNAME,
     PAYMENT_CARD, CLICK_MERCHANT_ID, PAYME_MERCHANT_ID,
@@ -19,13 +18,14 @@ from storage import get_user, save_users, payments_store, save_payments
 from states import DriverStates
 from utils import new_id, display_name, fmt_money
 from keyboards import (
-    tariff_kb, payment_method_kb, back_kb, contact_admin_kb,
-    admin_payment_decision_kb,
+    tariff_kb, payment_method_kb, contact_admin_kb,
+    admin_payment_decision_kb, cancel_inline_kb,
 )
 
 
-async def show_tariffs(message: types.Message):
-    await message.answer(
+async def show_tariffs(chat_id: int):
+    await bot.send_message(
+        chat_id,
         "💳 <b>Obuna tariflari</b>\n\n"
         "Botdan haydovchi sifatida to‘liq foydalanish uchun quyidagi "
         "tariflardan birini tanlang:",
@@ -154,24 +154,18 @@ async def payment_via_receipt(call: types.CallbackQuery, state: FSMContext):
     await state.set_state(DriverStates.waiting_receipt_photo)
 
     card = PAYMENT_CARD
+    text = (
+        "🧾 <b>Chek orqali to‘lov</b>\n\n"
+        f"🏦 Karta raqami: <code>{card['number']}</code>\n"
+        f"👍 {card['owner']}\n"
+        f"📞 Ulangan raqam: <code>{card['phone']}</code>\n\n"
+        "Yuqoridagi kartaga to‘lovni amalga oshirib, "
+        "to‘lov chekining rasmini shu yerga yuboring. 📸"
+    )
     try:
-        await call.message.edit_text(
-            "🧾 <b>Chek orqali to‘lov</b>\n\n"
-            f"🏦 Karta raqami: <code>{card['number']}</code>\n"
-            f"👍 {card['owner']}\n"
-            f"📞 Ulangan raqam: <code>{card['phone']}</code>\n\n"
-            "Yuqoridagi kartaga to‘lovni amalga oshirib, "
-            "to‘lov chekining rasmini shu yerga yuboring. 📸"
-        )
+        await call.message.edit_text(text, reply_markup=cancel_inline_kb())
     except Exception:
-        await call.message.answer(
-            "🧾 <b>Chek orqali to‘lov</b>\n\n"
-            f"🏦 Karta raqami: <code>{card['number']}</code>\n"
-            f"👍 {card['owner']}\n"
-            f"📞 Ulangan raqam: <code>{card['phone']}</code>\n\n"
-            "Yuqoridagi kartaga to‘lovni amalga oshirib, "
-            "to‘lov chekining rasmini shu yerga yuboring. 📸"
-        )
+        await call.message.answer(text, reply_markup=cancel_inline_kb())
     await call.answer()
 
 
@@ -183,7 +177,7 @@ async def receipt_photo_received(message: types.Message, state: FSMContext):
     await state.finish()
 
     if tariff_key not in TARIFFS:
-        return await message.answer("❌ Xatolik yuz berdi. Iltimos, qaytadan tarif tanlang.", reply_markup=back_kb())
+        return await message.answer("❌ Xatolik yuz berdi. Iltimos, qaytadan tarif tanlang.", reply_markup=tariff_kb())
 
     photo_id = message.photo[-1].file_id
     payment_id = await _create_payment_record(uid, tariff_key, "receipt", receipt_photo=photo_id)
@@ -191,12 +185,9 @@ async def receipt_photo_received(message: types.Message, state: FSMContext):
 
     await message.answer(
         "✅ Chek qabul qilindi!\n📨 So‘rov adminga yuborildi. Iltimos, admin javobini kuting.",
-        reply_markup=back_kb(),
     )
 
 
 @dp.message_handler(state=DriverStates.waiting_receipt_photo, content_types=["text"])
 async def receipt_photo_wrong_type(message: types.Message, state: FSMContext):
-    if message.text == "◀️ Orqaga":
-        return await do_back(message, state)
-    await message.answer("📸 Iltimos, to‘lov CHEKINING RASMINI yuboring.", reply_markup=back_kb())
+    await message.answer("📸 Iltimos, to‘lov CHEKINING RASMINI yuboring.", reply_markup=cancel_inline_kb())

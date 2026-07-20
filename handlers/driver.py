@@ -4,28 +4,29 @@ handlers/driver.py — haydovchi telefon raqami, e'lon yaratish
 (matn -> rasm -> interval -> tasdiqlash), to'xtatish va obuna holati.
 """
 import time
+import logging
 from aiogram import types
 from aiogram.dispatcher import FSMContext
+from aiogram.utils.exceptions import TelegramAPIError
 
 from bot_instance import bot, dp
-from handlers.start import do_back
 from config import ADMINS, DRIVER_CHANNELS
 from storage import get_user, save_users, save_ads, ads_store
 from states import DriverStates
+from stickers import send_sticker_safe
 from utils import normalize_phone, new_id, fmt_date, seconds_to_human
 from keyboards import (
-    back_kb, main_menu, driver_main_kb, phone_request_kb,
-    interval_inline_kb, ad_confirm_kb, driver_channel_ad_kb,
+    main_menu_kb, driver_main_kb, phone_request_kb, REMOVE_KB,
+    interval_inline_kb, ad_confirm_kb, driver_channel_ad_kb, cancel_inline_kb,
 )
+
+log = logging.getLogger(__name__)
 
 
 # ==================== TELEFON RAQAMNI QABUL QILISH ====================
 @dp.message_handler(content_types=["contact", "text"], state=DriverStates.waiting_phone)
 async def driver_get_phone(message: types.Message, state: FSMContext):
     uid = str(message.from_user.id)
-
-    if message.text == "◀️ Orqaga":
-        return await do_back(message, state)
 
     raw = message.contact.phone_number if message.contact else message.text
     phone = normalize_phone(raw)
@@ -41,14 +42,13 @@ async def driver_get_phone(message: types.Message, state: FSMContext):
     await save_users()
     await state.finish()
 
-    await message.answer(
-        f"✅ Raqamingiz saqlandi: <code>{phone}</code>\nEndi bemalol botdan foydalanishingiz mumkin!",
-        reply_markup=main_menu(is_admin=message.from_user.id in ADMINS),
-    )
+    await message.answer(f"✅ Raqamingiz saqlandi: <code>{phone}</code>", reply_markup=REMOVE_KB)
 
     if not u["subscription"].get("active"):
         from handlers.payment import show_tariffs
-        await show_tariffs(message)
+        await show_tariffs(message.chat.id)
+    else:
+        await message.answer("Haydovchi bo‘limi:", reply_markup=driver_main_kb())
 
 
 # ==================== E'LON BERISH (oxirgi e'londan davom etish) ====================
@@ -63,12 +63,12 @@ def _driver_ready(u: dict, uid: str = None) -> bool:
     return True
 
 
-@dp.message_handler(lambda m: m.text == "📣 E’lon berish", state="*")
-async def driver_new_ad_continue(message: types.Message, state: FSMContext):
-    uid = str(message.from_user.id)
+@dp.callback_query_handler(lambda c: c.data == "drv_post_ad", state="*")
+async def driver_new_ad_continue(call: types.CallbackQuery, state: FSMContext):
+    uid = str(call.from_user.id)
     u = get_user(uid)
     if not _driver_ready(u, uid):
-        return await message.answer("❌ Bu funksiyadan foydalanish uchun avval ro‘yxatdan o‘ting.", reply_markup=back_kb())
+        return await call.answer("❌ Bu funksiyadan foydalanish uchun avval ro‘yxatdan o‘ting.", show_alert=True)
 
     u["driver_paused"] = False
     await save_users()
@@ -77,40 +77,40 @@ async def driver_new_ad_continue(message: types.Message, state: FSMContext):
     if last_ad.get("text") and last_ad.get("photo"):
         await state.update_data(ad_text=last_ad["text"], ad_photo=last_ad["photo"])
         await state.set_state(DriverStates.waiting_ad_photo)  # interval callback shu state'ni kutadi
-        await message.answer(
+        await call.message.answer(
             "♻️ Oxirgi e’loningiz asosida davom etyapmiz (matn va rasm qayta so‘ralmaydi).\n\n"
             "⏱ E’lon necha daqiqada bir marta yuborilsin?",
             reply_markup=interval_inline_kb(),
         )
-        return
+        return await call.answer()
 
     await state.update_data(ad_text=None, ad_photo=None)
     await state.set_state(DriverStates.waiting_ad_text)
-    await message.answer("✍️ E’lon matnini yuboring:", reply_markup=back_kb())
+    await call.message.answer("✍️ E’lon matnini yuboring:", reply_markup=cancel_inline_kb())
+    await call.answer()
 
 
-@dp.message_handler(lambda m: m.text == "🆕 Yangi e’lon", state="*")
-async def driver_new_ad_fresh(message: types.Message, state: FSMContext):
-    uid = str(message.from_user.id)
+@dp.callback_query_handler(lambda c: c.data == "drv_new_ad", state="*")
+async def driver_new_ad_fresh(call: types.CallbackQuery, state: FSMContext):
+    uid = str(call.from_user.id)
     u = get_user(uid)
     if not _driver_ready(u, uid):
-        return await message.answer("❌ Bu funksiyadan foydalanish uchun avval ro‘yxatdan o‘ting.", reply_markup=back_kb())
+        return await call.answer("❌ Bu funksiyadan foydalanish uchun avval ro‘yxatdan o‘ting.", show_alert=True)
 
     u["driver_paused"] = False
     await save_users()
 
     await state.update_data(ad_text=None, ad_photo=None)
     await state.set_state(DriverStates.waiting_ad_text)
-    await message.answer("✍️ Yangi e’lon matnini yuboring:", reply_markup=back_kb())
+    await call.message.answer("✍️ Yangi e’lon matnini yuboring:", reply_markup=cancel_inline_kb())
+    await call.answer()
 
 
 @dp.message_handler(state=DriverStates.waiting_ad_text, content_types=["text"])
 async def driver_get_text(message: types.Message, state: FSMContext):
-    if message.text == "◀️ Orqaga":
-        return await do_back(message, state)
     await state.update_data(ad_text=message.text)
     await state.set_state(DriverStates.waiting_ad_photo)
-    await message.answer("📸 Mashina rasmini yuboring (majburiy):", reply_markup=back_kb())
+    await message.answer("📸 Mashina rasmini yuboring (majburiy):", reply_markup=cancel_inline_kb())
 
 
 @dp.message_handler(state=DriverStates.waiting_ad_photo, content_types=["photo"])
@@ -125,9 +125,7 @@ async def driver_get_photo(message: types.Message, state: FSMContext):
 
 @dp.message_handler(state=DriverStates.waiting_ad_photo, content_types=["text"])
 async def driver_get_photo_wrong_type(message: types.Message, state: FSMContext):
-    if message.text == "◀️ Orqaga":
-        return await do_back(message, state)
-    await message.answer("📸 Iltimos, mashina RASMINI yuboring (matn emas).", reply_markup=back_kb())
+    await message.answer("📸 Iltimos, mashina RASMINI yuboring (matn emas).", reply_markup=cancel_inline_kb())
 
 
 @dp.callback_query_handler(lambda c: c.data.startswith("ad_interval:"), state=DriverStates.waiting_ad_photo)
@@ -141,7 +139,8 @@ async def driver_pick_interval(call: types.CallbackQuery, state: FSMContext):
         f"📋 <b>E’lon xulosasi</b>\n\n"
         f"✍️ Matn: {text_preview}\n"
         f"⏱ Interval: {minutes} daqiqa\n\n"
-        f"Tasdiqlaysizmi?"
+        f"Tasdiqlaysizmi? Tasdiqlasangiz e’lon <b>darhol</b> guruhga yuboriladi, "
+        f"so‘ng har {minutes} daqiqada avtomatik qayta yuborilib turadi."
     )
     try:
         await call.message.edit_reply_markup()
@@ -192,37 +191,82 @@ async def driver_confirm_ad(call: types.CallbackQuery, state: FSMContext):
     await save_users()
     await state.finish()
 
-    await _broadcast_driver_ad(ad_id)
+    ok, err = await _broadcast_driver_ad(ad_id)
 
     try:
         await call.message.edit_reply_markup()
     except Exception:
         pass
-    await call.message.answer("🚀 E’lon yuborildi va faol holatda!", reply_markup=driver_main_kb())
+
+    if ok:
+        await call.message.answer(
+            f"🚀 E’lon guruhga yuborildi va faol holatda! Har {interval} daqiqada avtomatik takrorlanadi.",
+            reply_markup=driver_main_kb(),
+        )
+        await send_sticker_safe(int(uid), "ad_posted")
+    else:
+        await call.message.answer(
+            "⚠️ E’lon guruhga yuborilmadi!\n\n"
+            f"Sabab: <code>{err}</code>\n\n"
+            "Iltimos adminga xabar bering — botning kanal/guruhda administrator "
+            "ekanligini va kanal ID (config.py dagi DRIVER_CHANNELS) to‘g‘riligini tekshiring.",
+            reply_markup=driver_main_kb(),
+        )
     await call.answer()
 
 
 async def _broadcast_driver_ad(ad_id: str):
+    """
+    E'lonni DRIVER_CHANNELS ro'yxatidagi barcha guruh/kanallarga yuboradi.
+    MUHIM: xatolik sodir bo'lsa (masalan, bot guruhda admin emas, yoki
+    "tel:" havolasi Telegram tomonidan rad etilsa) endi bu jimgina
+    yutib yuborilmaydi — avval qo'ng'iroq tugmasisiz qayta urinadi,
+    baribir muvaffaqiyatsiz bo'lsa aniq xato matni qaytariladi.
+    """
     ad = ads_store.data["driver"].get(ad_id)
     if not ad:
-        return
+        return False, "E'lon topilmadi"
     user = get_user(ad["user"])
     phone = user.get("phone")
-    kb = driver_channel_ad_kb(phone)
+
+    any_success = False
+    last_error = None
+
     for ch in DRIVER_CHANNELS:
+        sent = False
+        # 1-urinish: qo'ng'iroq tugmasi bilan
         try:
-            await bot.send_photo(ch, ad["photo"], caption=ad["text"], reply_markup=kb)
-        except Exception:
-            pass
+            await bot.send_photo(ch, ad["photo"], caption=ad["text"], reply_markup=driver_channel_ad_kb(phone))
+            sent = True
+        except TelegramAPIError as e:
+            last_error = str(e)
+            log.warning("Kanal %s ga yuborishda xatolik (tel: tugma bilan): %s", ch, e)
+            # 2-urinish: faqat "Zakaz berish" tugmasi bilan (tel: havolasiz)
+            try:
+                await bot.send_photo(
+                    ch, ad["photo"], caption=ad["text"],
+                    reply_markup=driver_channel_ad_kb(phone, with_call_button=False),
+                )
+                sent = True
+            except TelegramAPIError as e2:
+                last_error = str(e2)
+                log.error("Kanal %s ga yuborib bo'lmadi: %s", ch, e2)
+        except Exception as e:
+            last_error = str(e)
+            log.error("Kanal %s ga yuborishda kutilmagan xatolik: %s", ch, e)
+
+        any_success = any_success or sent
+
     ad["last_sent"] = time.time()
     await save_ads()
+    return any_success, last_error
 
 
 # ==================== TO'XTATISH ====================
-@dp.message_handler(lambda m: m.text == "⏸ To‘xtatish", state="*")
-async def pause_driver(message: types.Message, state: FSMContext):
+@dp.callback_query_handler(lambda c: c.data == "drv_pause", state="*")
+async def pause_driver(call: types.CallbackQuery, state: FSMContext):
     await state.finish()
-    uid = str(message.from_user.id)
+    uid = str(call.from_user.id)
     u = get_user(uid)
     u["driver_paused"] = True
 
@@ -235,20 +279,29 @@ async def pause_driver(message: types.Message, state: FSMContext):
         await save_ads()
     await save_users()
 
-    await message.answer("⏸ E’loningiz muvaffaqiyatli to‘xtatildi.", reply_markup=main_menu(is_admin=message.from_user.id in ADMINS))
+    try:
+        await call.message.edit_reply_markup()
+    except Exception:
+        pass
+    await call.message.answer(
+        "⏸ E’loningiz muvaffaqiyatli to‘xtatildi.",
+        reply_markup=main_menu_kb(is_admin=call.from_user.id in ADMINS),
+    )
+    await call.answer()
 
 
 # ==================== MENING OBUNAM ====================
-@dp.message_handler(lambda m: m.text == "💳 Mening obunam", state="*")
-async def my_subscription(message: types.Message, state: FSMContext):
+@dp.callback_query_handler(lambda c: c.data == "drv_sub", state="*")
+async def my_subscription(call: types.CallbackQuery, state: FSMContext):
     await state.finish()
-    uid = str(message.from_user.id)
+    uid = str(call.from_user.id)
     u = get_user(uid)
     sub = u.get("subscription", {})
 
     if not sub.get("active"):
         from handlers.payment import show_tariffs
-        return await show_tariffs(message)
+        await call.answer()
+        return await show_tariffs(call.message.chat.id)
 
     tariff = sub.get("tariff")
     end = sub.get("end")
@@ -258,9 +311,10 @@ async def my_subscription(message: types.Message, state: FSMContext):
         remaining = end - time.time()
         expiry_text = f"{fmt_date(end)} ({seconds_to_human(remaining)} qoldi)" if remaining > 0 else "muddati tugagan"
 
-    await message.answer(
+    await call.message.answer(
         f"💳 <b>Sizning obunangiz</b>\n\n"
         f"📦 Tarif: {tariff or '—'}\n"
         f"📅 Tugash sanasi: {expiry_text}",
         reply_markup=driver_main_kb(),
     )
+    await call.answer()
