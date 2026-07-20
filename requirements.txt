@@ -1,6 +1,6 @@
-aiofiles==23.1.0
 aiogram==2.25.1
-aiohttp==3.8.6
+aiohttp>=3.8.0,<3.9.0
+aiofiles==23.1.0
 aiosignal==1.4.0
 async-timeout==4.0.3
 attrs==25.4.0
