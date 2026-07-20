@@ -25,6 +25,7 @@ DATA_DIR = BASE_DIR / "storage_data"
 DATA_FILE = DATA_DIR / "data.json"
 ADS_FILE = DATA_DIR / "ads.json"
 PAYMENTS_FILE = DATA_DIR / "payments.json"
+FSM_FILE = DATA_DIR / "fsm.json"
 
 # ==================== TO'LOV — CHEK ORQALI ====================
 # "Chek orqali to'lov" tanlanganda foydalanuvchiga shu karta ko'rsatiladi.

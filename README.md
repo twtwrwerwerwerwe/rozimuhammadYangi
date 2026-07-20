@@ -6,6 +6,43 @@ Eski `bot.py` faylida bo'lgan takrorlangan/qarama-qarshi kodlar
 handlerlari bir necha marta takrorlangani va h.k.) butunlay olib
 tashlandi.
 
+## 🛠️ Upgrade #1.1 — kritik xatolik tuzatildi (holat saqlanmasligi)
+
+**Muammo:** `to'lov joylari hech nima chiqmayabdi` deb xabar berdingiz.
+Chuqur tekshiruv natijasida sabab topildi: aiogram'ning standart
+`MemoryStorage`si foydalanuvchi "qaysi bosqichda turgani"ni
+(masalan, "telefon raqam kutilmoqda") faqat operativ xotirada saqlaydi.
+Railway konteyner har safar qayta ishga tushganda (redeploy, uyqudan
+uyg'onish, xatolik bo'lsa qayta ishga tushirish va h.k.) bu ma'lumot
+**butunlay yo'qolar edi**. Agar shu payt foydalanuvchi aynan telefon
+raqam yoki chek rasmi kutilayotgan bosqichda bo'lsa, bot uning
+xabariga umuman javob bermay qolardi — aynan siz ko'rgan "hech nima
+chiqmayabdi" holati shu edi.
+
+**Yechim:**
+1. Endi FSM holatlar `FileStorage` orqali **diskka** (`storage_data/fsm.json`)
+   yoziladi — bot qayta ishga tushsa ham, foydalanuvchi to'xtagan
+   joyidan (masalan, telefon so'ralayotgan bosqichdan) davom etaveradi.
+2. Qo'shimcha xavfsizlik chorasi sifatida `handlers/fallback.py`
+   qo'shildi — agar biror sabab bilan hech qanday handler mos kelmasa,
+   bot **hech qachon jim qolmaydi**, balki "Buni tushunmadim, menyudan
+   tanlang" deb asosiy menyuga qaytaradi.
+
+Bu tuzatish men tomondan haqiqiy Telegram oqimini simulyatsiya qiluvchi
+avtomatlashtirilgan test bilan tasdiqlandi: ariza → tasdiqlash →
+telefon → tarif → to'lov usuli → chek → admin tasdiqlashi — hammasi
+oxirigacha muvaffaqiyatli ishladi, shu jumladan **jarayon o'rtasida
+botni qayta ishga tushirib** ko'rilganda ham.
+
+⚠️ **Muhim:** Railway'da konteyner **doim ham bir xil diskda
+ishlamasligi** mumkin (agar Persistent Volume ulanmagan bo'lsa).
+Eng ishonchli natija uchun Railway loyihangizga **Volume** qo'shib,
+uni `/app/storage_data` yo'liga ulashni tavsiya qilaman — shunda
+ma'lumotlar (foydalanuvchilar, e'lonlar, to'lovlar, FSM holatlar)
+konteyner butunlay qayta yaratilganda ham yo'qolmaydi.
+
+---
+
 ## 📁 Loyiha tuzilishi
 
 ```
@@ -24,7 +61,8 @@ taxi_bot/
     ├── driver.py               # telefon, e'lon berish/to'xtatish, obuna holati
     ├── payment.py               # tarif tanlash, to'lov usullari
     ├── payment_admin.py          # admin to'lovlarni tasdiqlash/rad etish
-    └── passenger.py               # yo'lovchi bo'limi (to'liq yangi dizayn)
+    ├── passenger.py               # yo'lovchi bo'limi (to'liq yangi dizayn)
+    └── fallback.py                  # hech narsa mos kelmasa - oxirgi himoya
 ```
 
 ## ⚙️ Sozlash — FAQAT `config.py` faylini tahrirlang

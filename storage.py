@@ -7,9 +7,12 @@ qayta-qayta e'lon qilingan va bir-birini ustiga yozib, xatolarga sabab
 bo'lgan edi. Endi butun loyihada FAQAT shu yerdagi bitta JSONStore
 klassi ishlatiladi.
 """
+import copy
 import json
 import asyncio
 from pathlib import Path
+
+from aiogram.contrib.fsm_storage.memory import BaseStorage
 
 
 class JSONStore:
@@ -46,6 +49,113 @@ class JSONStore:
                 json.dumps(self.data, ensure_ascii=False, indent=2), encoding="utf-8"
             )
             tmp_path.replace(self.path)
+
+
+class FileStorage(BaseStorage):
+    """
+    Diskka yozadigan FSM (holat) ombori.
+
+    MUHIM: aiogram'ning standart MemoryStorage'i bot qayta ishga tushganda
+    (Railway qayta deploy qilganda, konteyner uxlab-uyg'onganda va h.k.)
+    barcha foydalanuvchilarning "qaysi bosqichda turgani" ma'lumotini
+    butunlay yo'qotadi — masalan, kimdir telefon raqamini kiritayotgan
+    payt bot qayta ishga tushsa, u holat unutiladi va foydalanuvchi
+    yuborgan xabarga bot HECH QANDAY javob bermay qoladi ("hech nima
+    chiqmayabdi" degan muammoning aynan asosiy sababi shu edi).
+
+    Shu klass har bir o'zgarishni darhol diskka (`storage_data/fsm.json`)
+    yozib boradi, shuning uchun bot qayta ishga tushsa ham foydalanuvchi
+    to'xtagan joyidan davom etaveradi.
+    """
+
+    def __init__(self, path):
+        self.path = Path(path)
+        self._lock = asyncio.Lock()
+        self.data = self._load()
+
+    def _load(self) -> dict:
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        if not self.path.exists():
+            self.path.write_text("{}", encoding="utf-8")
+            return {}
+        try:
+            return json.loads(self.path.read_text(encoding="utf-8"))
+        except Exception:
+            return {}
+
+    def _save_sync(self):
+        tmp_path = self.path.with_suffix(".tmp")
+        tmp_path.write_text(json.dumps(self.data, ensure_ascii=False), encoding="utf-8")
+        tmp_path.replace(self.path)
+
+    async def _save(self):
+        async with self._lock:
+            self._save_sync()
+
+    def resolve_address(self, chat, user):
+        chat_id, user_id = map(str, self.check_address(chat=chat, user=user))
+        if chat_id not in self.data:
+            self.data[chat_id] = {}
+        if user_id not in self.data[chat_id]:
+            self.data[chat_id][user_id] = {"state": None, "data": {}, "bucket": {}}
+        return chat_id, user_id
+
+    async def get_state(self, *, chat=None, user=None, default=None):
+        chat, user = self.resolve_address(chat=chat, user=user)
+        return self.data[chat][user].get("state", self.resolve_state(default))
+
+    async def get_data(self, *, chat=None, user=None, default=None):
+        chat, user = self.resolve_address(chat=chat, user=user)
+        return copy.deepcopy(self.data[chat][user]["data"])
+
+    async def update_data(self, *, chat=None, user=None, data=None, **kwargs):
+        if data is None:
+            data = {}
+        chat, user = self.resolve_address(chat=chat, user=user)
+        self.data[chat][user]["data"].update(data, **kwargs)
+        await self._save()
+
+    async def set_state(self, *, chat=None, user=None, state=None):
+        chat, user = self.resolve_address(chat=chat, user=user)
+        self.data[chat][user]["state"] = self.resolve_state(state)
+        await self._save()
+
+    async def set_data(self, *, chat=None, user=None, data=None):
+        chat, user = self.resolve_address(chat=chat, user=user)
+        self.data[chat][user]["data"] = copy.deepcopy(data or {})
+        await self._save()
+
+    async def reset_state(self, *, chat=None, user=None, with_data=True):
+        chat, user = self.resolve_address(chat=chat, user=user)
+        self.data[chat][user]["state"] = None
+        if with_data:
+            self.data[chat][user]["data"] = {}
+        await self._save()
+
+    def has_bucket(self):
+        return True
+
+    async def get_bucket(self, *, chat=None, user=None, default=None):
+        chat, user = self.resolve_address(chat=chat, user=user)
+        return copy.deepcopy(self.data[chat][user]["bucket"])
+
+    async def set_bucket(self, *, chat=None, user=None, bucket=None):
+        chat, user = self.resolve_address(chat=chat, user=user)
+        self.data[chat][user]["bucket"] = copy.deepcopy(bucket or {})
+        await self._save()
+
+    async def update_bucket(self, *, chat=None, user=None, bucket=None, **kwargs):
+        if bucket is None:
+            bucket = {}
+        chat, user = self.resolve_address(chat=chat, user=user)
+        self.data[chat][user]["bucket"].update(bucket, **kwargs)
+        await self._save()
+
+    async def close(self):
+        self._save_sync()
+
+    async def wait_closed(self):
+        return True
 
 
 # ==================== OMBORLAR ====================

@@ -71,7 +71,7 @@ async def passenger_get_phone(message: types.Message, state: FSMContext):
     u["phone"] = phone
     await save_users()
 
-    await state.update_data(passenger_phone=phone)
+    await state.finish()
     await message.answer(f"✅ Raqamingiz saqlandi: <code>{phone}</code>")
     await message.answer("📍 Yo‘nalishni tanlang:", reply_markup=route_kb())
 
