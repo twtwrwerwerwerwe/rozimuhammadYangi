@@ -97,17 +97,20 @@ def ad_confirm_kb() -> InlineKeyboardMarkup:
     return kb
 
 
-def driver_channel_ad_kb(ad_id: str, has_phone: bool) -> InlineKeyboardMarkup:
+def driver_channel_ad_kb(ad_id: str, uid: str, username: str) -> InlineKeyboardMarkup:
     """
-    MUHIM: Telegram Bot API "tel:" havolali inline tugmalarni QABUL
-    QILMAYDI (URL faqat http/https/tg:// bo'lishi kerak) — shuning
-    uchun qo'ng'iroq tugmasi endi callback orqali ishlaydi: bosilganda
-    bot haydovchining raqamini "kontakt karta" shaklida foydalanuvchiga
-    yuboradi, u orqali bitta bosishda qo'ng'iroq qilish mumkin bo'ladi.
+    "Qo'ng'iroq" o'rniga endi "Haydovchi profili" tugmasi turadi.
+    Agar haydovchida ochiq username bo'lsa — tugma to'g'ridan-to'g'ri
+    o'sha profilga o'tadi (bitta bosishda, eng ishonchli usul). Agar
+    username bo'lmasa (ba'zi foydalanuvchilar buni yashiradi), profilni
+    ID orqali ochish har doim ham ishlayvermaydi — shu holatda tugma
+    bot orqali profil ma'lumotini (ism, telefon) ko'rsatadi.
     """
     kb = InlineKeyboardMarkup(row_width=1)
-    if has_phone:
-        kb.add(InlineKeyboardButton("📞 Haydovchiga qo‘ng‘iroq", callback_data=f"call_drv:{ad_id}"))
+    if username:
+        kb.add(InlineKeyboardButton("👤 Haydovchi profili", url=f"https://t.me/{username}"))
+    else:
+        kb.add(InlineKeyboardButton("👤 Haydovchi profili", callback_data=f"profile_drv:{ad_id}"))
     kb.add(InlineKeyboardButton(
         "📩 Zakaz berish", url=f"https://t.me/{BOT_USERNAME}?start=zakaz"
     ))

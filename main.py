@@ -9,6 +9,7 @@ import logging
 import asyncio
 
 from aiogram.utils import executor
+from aiogram.types import BotCommand, BotCommandScopeAllPrivateChats, BotCommandScopeAllGroupChats
 
 from bot_instance import bot, dp
 import background
@@ -28,6 +29,19 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(
 
 
 async def on_startup(dispatcher):
+    # MUHIM: bot buyruqlari ("/" bosilganda chiqadigan menyu) FAQAT
+    # shaxsiy chatda ko'rinishi kerak. Guruh/kanallarda bu menyu
+    # chiqmasligi uchun guruh doirasidagi buyruqlar ro'yxati bo'sh
+    # qilib qo'yiladi.
+    try:
+        await bot.set_my_commands(
+            [BotCommand("start", "Botni ishga tushirish")],
+            scope=BotCommandScopeAllPrivateChats(),
+        )
+        await bot.set_my_commands([], scope=BotCommandScopeAllGroupChats())
+    except Exception as e:
+        logging.warning("Bot buyruqlarini sozlashda xatolik: %s", e)
+
     asyncio.create_task(background.driver_ads_loop())
     asyncio.create_task(background.subscription_watch_loop())
     logging.info("Bot ishga tushdi ✅")

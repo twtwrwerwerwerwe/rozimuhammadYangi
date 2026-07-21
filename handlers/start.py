@@ -11,6 +11,12 @@ from keyboards import main_menu_kb, REMOVE_KB
 
 @dp.message_handler(commands=["start"], state="*")
 async def start_cmd(message: types.Message, state: FSMContext):
+    # MUHIM: bot faqat shaxsiy chatda /start ga javob berishi kerak.
+    # Bot admin qilib qo'yilgan guruh/kanallarda kimdir /start yozsa,
+    # bot u yerda HECH QANDAY javob bermasligi kerak.
+    if message.chat.type != "private":
+        return
+
     await state.finish()
     uid = str(message.from_user.id)
     touch_user_profile(uid, message.from_user.full_name or "", message.from_user.username or "")
@@ -68,6 +74,8 @@ async def cancel_flow(call: types.CallbackQuery, state: FSMContext):
 # "❌ Bekor qilish" reply-tugmasi (telefon/lokatsiya so'ralayotgan bosqichlarda)
 @dp.message_handler(lambda m: m.text == "❌ Bekor qilish", state="*")
 async def cancel_reply_button(message: types.Message, state: FSMContext):
+    if message.chat.type != "private":
+        return
     await state.finish()
     is_admin = message.from_user.id in ADMINS
     await message.answer("❌ Bekor qilindi.", reply_markup=REMOVE_KB)

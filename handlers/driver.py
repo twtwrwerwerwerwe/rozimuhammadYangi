@@ -226,8 +226,7 @@ async def _broadcast_driver_ad(ad_id: str):
     if not ad:
         return False, "E'lon topilmadi"
     user = get_user(ad["user"])
-    phone = user.get("phone")
-    kb = driver_channel_ad_kb(ad_id, has_phone=bool(phone))
+    kb = driver_channel_ad_kb(ad_id, ad["user"], user.get("username"))
 
     any_success = False
     last_error = None
@@ -248,9 +247,9 @@ async def _broadcast_driver_ad(ad_id: str):
     return any_success, last_error
 
 
-# ==================== HAYDOVCHIGA QO'NG'IROQ (kontakt karta orqali) ====================
-@dp.callback_query_handler(lambda c: c.data.startswith("call_drv:"))
-async def call_driver(call: types.CallbackQuery):
+# ==================== HAYDOVCHI PROFILI ====================
+@dp.callback_query_handler(lambda c: c.data.startswith("profile_drv:"))
+async def profile_driver(call: types.CallbackQuery):
     ad_id = call.data.split(":")[1]
     ad = ads_store.data["driver"].get(ad_id)
     if not ad:
@@ -258,16 +257,32 @@ async def call_driver(call: types.CallbackQuery):
 
     driver = get_user(ad["user"])
     phone = driver.get("phone")
-    if not phone:
-        return await call.answer("❌ Bu haydovchining raqami mavjud emas.", show_alert=True)
 
     from utils import display_name
+    from keyboards import driver_profile_kb
     name = display_name(driver, ad["user"])
+
+    text = (
+        f"👤 <b>Haydovchi profili</b>\n\n"
+        f"🚕 Ism: <b>{name}</b>\n"
+        f"✅ Status: Tasdiqlangan haydovchi\n\n"
+    )
+    if phone:
+        # Telegram bunday raqamlarni matn ichida o'zi aniqlab, bosiladigan
+        # havolaga aylantiradi — ustiga bosilsa terish (dialer) ilovasi
+        # o'sha raqam bilan ochiladi.
+        text += f"📞 Telefon: {phone}\n<i>(raqamning ustiga bosib qo‘ng‘iroq qilishingiz mumkin)</i>"
+    else:
+        text += "📞 Telefon: —"
+
     try:
-        await bot.send_contact(call.from_user.id, phone_number=phone, first_name=name)
-        await call.answer("☎️ Haydovchi raqami botga yuborildi — kontaktni bosib qo‘ng‘iroq qiling!", show_alert=True)
+        await bot.send_message(call.from_user.id, text, reply_markup=driver_profile_kb(driver.get("username")))
+        await call.answer("👤 Profil botga yuborildi — xabarlarni oching!", show_alert=True)
     except Exception:
-        await call.answer(f"☎️ Haydovchi raqami: {phone}", show_alert=True)
+        await call.answer(
+            f"👤 {name}\n📞 {phone or '—'}",
+            show_alert=True,
+        )
 
 
 # ==================== TO'XTATISH ====================
