@@ -97,10 +97,17 @@ def ad_confirm_kb() -> InlineKeyboardMarkup:
     return kb
 
 
-def driver_channel_ad_kb(phone: str, with_call_button: bool = True) -> InlineKeyboardMarkup:
+def driver_channel_ad_kb(ad_id: str, has_phone: bool) -> InlineKeyboardMarkup:
+    """
+    MUHIM: Telegram Bot API "tel:" havolali inline tugmalarni QABUL
+    QILMAYDI (URL faqat http/https/tg:// bo'lishi kerak) — shuning
+    uchun qo'ng'iroq tugmasi endi callback orqali ishlaydi: bosilganda
+    bot haydovchining raqamini "kontakt karta" shaklida foydalanuvchiga
+    yuboradi, u orqali bitta bosishda qo'ng'iroq qilish mumkin bo'ladi.
+    """
     kb = InlineKeyboardMarkup(row_width=1)
-    if phone and with_call_button:
-        kb.add(InlineKeyboardButton("📞 Haydovchiga qo‘ng‘iroq", url=f"tel:{phone}"))
+    if has_phone:
+        kb.add(InlineKeyboardButton("📞 Haydovchiga qo‘ng‘iroq", callback_data=f"call_drv:{ad_id}"))
     kb.add(InlineKeyboardButton(
         "📩 Zakaz berish", url=f"https://t.me/{BOT_USERNAME}?start=zakaz"
     ))

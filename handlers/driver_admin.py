@@ -179,10 +179,26 @@ async def admin_driver_action(call: types.CallbackQuery):
         u["driver_status"] = "rejected"
         u["driver_paused"] = True
         u["subscription"]["active"] = False
+
+        from storage import ads_store, save_ads
+        ads_stopped = False
+        for ad in ads_store.data["driver"].values():
+            if ad.get("user") == uid and ad.get("active", False):
+                ad["active"] = False
+                ads_stopped = True
+        if ads_stopped:
+            await save_ads()
+
         await save_users()
-        await call.answer("Foydalanuvchi chiqarib tashlandi.")
+        await call.answer("Foydalanuvchi chiqarib tashlandi, e’lonlari to‘xtatildi.")
         try:
-            await bot.send_message(int(uid), "❌ Siz haydovchilar ro‘yxatidan chiqarib tashlandingiz.", reply_markup=main_menu_kb())
+            await bot.send_message(
+                int(uid),
+                "❌ Siz haydovchilar ro‘yxatidan chiqarib tashlandingiz. "
+                "Faol e’loningiz ham to‘xtatildi va botdan haydovchi sifatida "
+                "foydalana olmaysiz.",
+                reply_markup=main_menu_kb(),
+            )
         except Exception:
             pass
 

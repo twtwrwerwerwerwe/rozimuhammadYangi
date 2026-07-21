@@ -218,48 +218,56 @@ async def driver_confirm_ad(call: types.CallbackQuery, state: FSMContext):
 async def _broadcast_driver_ad(ad_id: str):
     """
     E'lonni DRIVER_CHANNELS ro'yxatidagi barcha guruh/kanallarga yuboradi.
-    MUHIM: xatolik sodir bo'lsa (masalan, bot guruhda admin emas, yoki
-    "tel:" havolasi Telegram tomonidan rad etilsa) endi bu jimgina
-    yutib yuborilmaydi — avval qo'ng'iroq tugmasisiz qayta urinadi,
-    baribir muvaffaqiyatsiz bo'lsa aniq xato matni qaytariladi.
+    MUHIM: xatolik sodir bo'lsa (masalan, bot guruhda admin emas) endi
+    bu jimgina yutib yuborilmaydi — aniq xato matni qaytariladi, shunda
+    muammoni darhol tushunib tuzatish mumkin.
     """
     ad = ads_store.data["driver"].get(ad_id)
     if not ad:
         return False, "E'lon topilmadi"
     user = get_user(ad["user"])
     phone = user.get("phone")
+    kb = driver_channel_ad_kb(ad_id, has_phone=bool(phone))
 
     any_success = False
     last_error = None
 
     for ch in DRIVER_CHANNELS:
-        sent = False
-        # 1-urinish: qo'ng'iroq tugmasi bilan
         try:
-            await bot.send_photo(ch, ad["photo"], caption=ad["text"], reply_markup=driver_channel_ad_kb(phone))
-            sent = True
+            await bot.send_photo(ch, ad["photo"], caption=ad["text"], reply_markup=kb)
+            any_success = True
         except TelegramAPIError as e:
             last_error = str(e)
-            log.warning("Kanal %s ga yuborishda xatolik (tel: tugma bilan): %s", ch, e)
-            # 2-urinish: faqat "Zakaz berish" tugmasi bilan (tel: havolasiz)
-            try:
-                await bot.send_photo(
-                    ch, ad["photo"], caption=ad["text"],
-                    reply_markup=driver_channel_ad_kb(phone, with_call_button=False),
-                )
-                sent = True
-            except TelegramAPIError as e2:
-                last_error = str(e2)
-                log.error("Kanal %s ga yuborib bo'lmadi: %s", ch, e2)
+            log.error("Kanal %s ga yuborib bo'lmadi: %s", ch, e)
         except Exception as e:
             last_error = str(e)
             log.error("Kanal %s ga yuborishda kutilmagan xatolik: %s", ch, e)
 
-        any_success = any_success or sent
-
     ad["last_sent"] = time.time()
     await save_ads()
     return any_success, last_error
+
+
+# ==================== HAYDOVCHIGA QO'NG'IROQ (kontakt karta orqali) ====================
+@dp.callback_query_handler(lambda c: c.data.startswith("call_drv:"))
+async def call_driver(call: types.CallbackQuery):
+    ad_id = call.data.split(":")[1]
+    ad = ads_store.data["driver"].get(ad_id)
+    if not ad:
+        return await call.answer("❌ Bu e’lon topilmadi yoki eskirgan.", show_alert=True)
+
+    driver = get_user(ad["user"])
+    phone = driver.get("phone")
+    if not phone:
+        return await call.answer("❌ Bu haydovchining raqami mavjud emas.", show_alert=True)
+
+    from utils import display_name
+    name = display_name(driver, ad["user"])
+    try:
+        await bot.send_contact(call.from_user.id, phone_number=phone, first_name=name)
+        await call.answer("☎️ Haydovchi raqami botga yuborildi — kontaktni bosib qo‘ng‘iroq qiling!", show_alert=True)
+    except Exception:
+        await call.answer(f"☎️ Haydovchi raqami: {phone}", show_alert=True)
 
 
 # ==================== TO'XTATISH ====================

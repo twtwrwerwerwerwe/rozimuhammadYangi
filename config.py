@@ -45,10 +45,10 @@ PAYME_MERCHANT_ID = None
 # ==================== TARIFLAR ====================
 # key -> {label: ko'rinadigan nom, days: necha kunlik obuna (None = umrbod), price: narxi so'mda}
 TARIFFS = {
-    "1m": {"label": "1 oylik", "days": 30, "price": 60_000},
-    "2m": {"label": "2 oylik", "days": 60, "price": 110_000},
-    "5m": {"label": "5 oylik", "days": 150, "price": 250_000},
-    "lifetime": {"label": "♾ Umrbod", "days": None, "price": 600_000},
+    "1m": {"label": "1 oylik", "days": 31, "price": 100_000},
+    "2m": {"label": "2 oylik", "days": 62, "price": 200_000},
+    "5m": {"label": "5 oylik", "days": 153, "price": 500_000},
+    "lifetime": {"label": "♾ Umrbod", "days": None, "price": 2_000_000},
 }
 
 # ==================== ESLATMALAR / VAQT SOZLAMALARI ====================

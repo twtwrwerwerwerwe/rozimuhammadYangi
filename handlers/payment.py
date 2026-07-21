@@ -91,11 +91,11 @@ async def _notify_admins_payment(payment_id: str):
 
     caption = (
         f"💳 <b>Yangi to‘lov so‘rovi</b>\n\n"
-        f"👤 Foydalanuvchi: <b>{name}</b>\n"
-        f"🆔 ID: <code>{p['uid']}</code>\n"
-        f"📞 Telefon: {u.get('phone') or '—'}\n"
-        f"📦 Tarif: <b>{tariff['label']}</b>\n"
-        f"💰 Narxi: <b>{fmt_money(p['price'])}</b>\n"
+        f"👤 Foydalanuvchi: <b>{name}</b>\n\n"
+        f"🆔 ID: <code>{p['uid']}</code>\n\n"
+        f"📞 Telefon: {u.get('phone') or '—'}\n\n"
+        f"📦 Tarif: <b>{tariff['label']}</b>\n\n"
+        f"💰 Narxi: <b>{fmt_money(p['price'])}</b>\n\n"
         f"🔧 Usul: {method_label}"
     )
     kb = admin_payment_decision_kb(payment_id)

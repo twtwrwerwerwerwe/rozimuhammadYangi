@@ -85,6 +85,26 @@ qanday xatolikka olib kelmaydi.
 
 ---
 
+## ☎️ Upgrade #1.3 — qo'ng'iroq tugmasi va haydovchini chiqarishda e'lon to'xtashi
+
+**1) "📞 Haydovchiga qo‘ng‘iroq" tugmasi yo‘qolib qolayotgan edi —
+sababi topildi.** Telegram Bot API "tel:" havolali tugmalarni ASLIDA
+qabul qilmaydi (faqat http/https/tg:// ruxsat etiladi) — bot buni
+serverdan "xato" deb qaytarib olar, avvalgi kodda esa shu sabab shu
+tugmasiz qayta yuborib yuborar edi (shuning uchun faqat "Zakaz
+berish" tugmasi qolardi). Endi bu tugma **kontakt karta** orqali
+ishlaydi: bosilganda bot haydovchining raqamini sizga shaxsiy
+xabarda "kontakt" shaklida yuboradi — uni bosib, bir zumda
+qo‘ng‘iroq qilishingiz mumkin (Telegram'ning o‘zi shunday imkoniyat
+beradi).
+
+**2) Admin haydovchini "❌ Chiqarib tashlash" qilsa, uning e'loni ham
+darhol to‘xtaydi.** Avval faqat "pauza" belgisi qo‘yilardi, ammo
+e'lonning o'zi "faol" holatda qolib ketardi. Endi e'lon ham darhol
+"nofaol" qilinadi va haydovchiga ham xabar boradi.
+
+---
+
 ## 📁 Loyiha tuzilishi
 
 ```
