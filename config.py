@@ -17,7 +17,7 @@ ADMIN_USERNAME = "@akramjonov777"     # admin telegram username (foydalanuvchiga
 
 # ==================== GURUH / KANALLAR ====================
 DRIVER_CHANNELS = [-1003640341366]     # haydovchilar e'lonlari shu yerga tushadi
-PASSENGER_CHANNELS = [-1003888459573]  # yo'lovchilar e'lonlari shu yerga tushadi
+PASSENGER_CHANNELS = [-1003825444265]  # yo'lovchilar e'lonlari shu yerga tushadi
 
 # ==================== FAYLLAR ====================
 BASE_DIR = Path(__file__).resolve().parent
