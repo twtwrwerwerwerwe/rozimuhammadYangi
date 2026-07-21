@@ -263,11 +263,37 @@ async def call_driver(call: types.CallbackQuery):
 
     from utils import display_name
     name = display_name(driver, ad["user"])
+
+    # MUHIM: Telegram Bot API tugmalarda "tel:" havolasini qabul qilmaydi
+    # (faqat http/https/tg:// ruxsat etiladi), shuning uchun raqamni
+    # TUGMA emas, oddiy MATN sifatida yuboramiz — Telegram ilovasi bunday
+    # raqamlarni matn ichida o'zi aniqlab, "bosiladigan" (ko'k rangli)
+    # havolaga aylantiradi. Ustiga bosilganda telefonning terish (dialer)
+    # ilovasi o'sha raqam bilan ochiladi — foydalanuvchi o'zi "qo'ng'iroq
+    # qilish" tugmasini bosadi.
+    try:
+        await bot.send_message(
+            call.from_user.id,
+            f"📞 Haydovchi: {name}\n{phone}\n\n"
+            "☝️ Yuqoridagi raqamning ustiga bosing — telefon ilovasi shu "
+            "raqam bilan ochiladi, xohlasangiz qo‘ng‘iroq qilasiz.",
+        )
+        await call.answer("📞 Raqam botga yuborildi — xabarlarni oching!", show_alert=True)
+    except Exception:
+        # Agar foydalanuvchi botni hali /start bilan ochmagan bo'lsa,
+        # xabar yubora olmaymiz — shu holatda raqamni to'g'ridan-to'g'ri
+        # popup oynada ko'rsatamiz (bosib bo'lmaydi, lekin ko'rinadi).
+        await call.answer(
+            f"📞 {name}\n{phone}\n\nQo‘ng‘iroq qilish uchun shu raqamni terib chaqiring.",
+            show_alert=True,
+        )
+
+    # Qo'shimcha qulaylik: ba'zi qurilmalarda kontakt-kartani bosish orqali
+    # ham chaqirish qulayroq bo'lishi mumkin — shuni ham jimgina yuboramiz.
     try:
         await bot.send_contact(call.from_user.id, phone_number=phone, first_name=name)
-        await call.answer("☎️ Haydovchi raqami botga yuborildi — kontaktni bosib qo‘ng‘iroq qiling!", show_alert=True)
     except Exception:
-        await call.answer(f"☎️ Haydovchi raqami: {phone}", show_alert=True)
+        pass
 
 
 # ==================== TO'XTATISH ====================
