@@ -22,6 +22,8 @@ async def capture_sticker_id(message: types.Message, state: FSMContext):
     """Admin botga stiker yuborsa — uning file_id'sini qaytarib beradi.
     Shu ID'ni config.py dagi STICKERS lug'atiga qo'yish orqali bot
     o'sha stikerni muhim daqiqalarda avtomatik yuboradi."""
+    if message.chat.type != "private":
+        return
     if message.from_user.id not in ADMINS:
         return await fallback_message(message, state)
     await message.answer(
@@ -34,6 +36,12 @@ async def capture_sticker_id(message: types.Message, state: FSMContext):
 
 @dp.message_handler(content_types=types.ContentTypes.ANY, state="*")
 async def fallback_message(message: types.Message, state: FSMContext):
+    # MUHIM: bot faqat shaxsiy chatda "tushunmadim" deb javob berishi kerak.
+    # Guruh/kanallarda (e'lonlar tushadigan joylarda) botga tegishli bo'lmagan
+    # xabarlarga hech qachon javob YOZMASLIGI kerak — shu yerda aynan shu
+    # cheklov qo'yiladi.
+    if message.chat.type != "private":
+        return
     uid = str(message.from_user.id)
     get_user(uid)
     await state.finish()
